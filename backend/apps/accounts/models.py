@@ -1,3 +1,8 @@
+import hashlib
+import secrets
+import uuid
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
@@ -89,3 +94,44 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+def hash_api_key(raw):
+    """SHA-256 hex of a raw API key. Deterministic lookup value (the raw key is
+    high-entropy random, so a plain hash — not a slow password hash — is fine)."""
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+class ApiKey(models.Model):
+    """Credential for the external subscriber-creation endpoint. The raw key is
+    shown ONCE at creation and never stored; only its SHA-256 hash is persisted."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_keys"
+    )
+    name = models.CharField(max_length=100, blank=True)      # etiqueta humana, p.ej. "Landing page"
+    prefix = models.CharField(max_length=12, db_index=True)  # primeros caracteres del key, solo para mostrar
+    hashed_key = models.CharField(max_length=64, unique=True)  # sha256 hex del key completo
+    is_active = models.BooleanField(default=True)            # revocar = poner False
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name or 'API key'} ({self.prefix}…)"
+
+    @classmethod
+    def generate(cls, user, name=""):
+        """Create an ApiKey and return (instance, raw_key). raw_key is only
+        available here — it is never recoverable afterwards."""
+        raw = secrets.token_urlsafe(32)
+        instance = cls.objects.create(
+            user=user,
+            name=name,
+            prefix=raw[:8],
+            hashed_key=hash_api_key(raw),
+        )
+        return instance, raw

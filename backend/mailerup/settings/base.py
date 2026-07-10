@@ -105,8 +105,10 @@ REST_FRAMEWORK = {
     # operaciones masivas legítimas (import/export de suscriptores, etc.).
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
-        "login": "10/min",       # frena fuerza bruta / credential stuffing
-        "subscribe": "30/min",   # frena abuso del formulario público de alta
+        "login": "10/min",            # frena fuerza bruta / credential stuffing
+        "subscribe": "30/min",        # frena abuso del formulario público de alta
+        "api_subscribe": "60/min",    # alta vía API key externa, por key
+        "api_subscribe_ip": "120/min",  # tope por IP (pre-auth) del endpoint por-key
     },
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Send, CheckCircle2, AlertCircle, Database } from 'lucide-react'
+import { Save, Send, CheckCircle2, AlertCircle, Database, Key, Copy, Trash2 } from 'lucide-react'
 import api from '../api'
 import DnsSetupBlock from '../components/DnsSetupBlock.jsx'
 
@@ -408,6 +408,8 @@ export default function Settings() {
       </section>
       )}
 
+      {isAdmin && <ApiKeysSection />}
+
       {isAdmin && (
       <section className="card p-6 space-y-3">
         <div className="flex items-center gap-3">
@@ -488,6 +490,154 @@ function FooterPreview({ footer }) {
         </a>.
       </div>
     </div>
+  )
+}
+
+function ApiKeysSection() {
+  const [keys, setKeys] = useState(null)
+  const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [newKey, setNewKey] = useState(null)   // { key, prefix } — mostrado una sola vez
+  const [copied, setCopied] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const endpoint = `${window.location.origin}/api/public/subscribers/`
+
+  async function load() {
+    try {
+      const r = await api.get('/auth/api-keys/')
+      setKeys(r.data.results || r.data)   // paginado o lista
+    } catch {
+      setErr('No se pudieron cargar las claves')
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  async function create() {
+    setCreating(true); setErr(null); setNewKey(null); setCopied(false)
+    try {
+      const r = await api.post('/auth/api-keys/', { name: name.trim() })
+      setNewKey(r.data)   // incluye el campo `key` en claro (solo esta vez)
+      setName('')
+      load()
+    } catch (e) {
+      setErr(e.response?.data ? JSON.stringify(e.response.data) : 'Error creando la clave')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function revoke(id) {
+    if (!window.confirm('¿Revocar esta clave? Los sistemas que la usen dejarán de funcionar.')) return
+    try {
+      await api.delete(`/auth/api-keys/${id}/`)
+      load()
+    } catch {
+      setErr('No se pudo revocar la clave')
+    }
+  }
+
+  function copyKey() {
+    if (!newKey?.key) return
+    navigator.clipboard.writeText(newKey.key).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <section className="card p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <Key className="h-5 w-5 text-primary-600" />
+        <h2 className="font-semibold">Claves API</h2>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-slate-300">
+        Genera claves para que un sistema externo (tu web, un CRM, Zapier…) dé de alta suscriptores
+        mediante una petición <code>POST</code>. La clave se muestra <strong>una sola vez</strong>;
+        guárdala en un sitio seguro. Si la pierdes, revócala y crea otra.
+      </p>
+
+      <div className="rounded-md border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-3 text-xs font-mono overflow-x-auto">
+        <div className="text-gray-500 dark:text-slate-400 mb-1 font-sans">Uso:</div>
+        curl -X POST {endpoint} \<br />
+        &nbsp;&nbsp;-H "Authorization: Bearer &lt;TU_CLAVE&gt;" \<br />
+        &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+        &nbsp;&nbsp;-d '{'{'}"email":"nuevo@ejemplo.com","first_name":"Ana"{'}'}'
+      </div>
+
+      {/* Alta de clave */}
+      <div className="flex flex-wrap items-end gap-2 border-t border-gray-100 dark:border-slate-700 pt-4">
+        <div className="flex-1 min-w-[220px]">
+          <label className="label">Nombre (para identificarla)</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Ej: Landing de captación" maxLength={100} />
+        </div>
+        <button className="btn-primary" onClick={create} disabled={creating}>
+          <Key className="h-4 w-4" /> {creating ? 'Creando…' : 'Crear clave'}
+        </button>
+      </div>
+
+      {newKey?.key && (
+        <div className="rounded-md border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30 p-3 space-y-2">
+          <div className="text-xs font-medium text-green-800 dark:text-green-300">
+            ✓ Clave creada. Cópiala ahora — no volverá a mostrarse.
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs font-mono break-all bg-white dark:bg-slate-800 rounded px-2 py-1.5 border border-green-200 dark:border-green-800">
+              {newKey.key}
+            </code>
+            <button className="btn-secondary shrink-0" onClick={copyKey}>
+              <Copy className="h-4 w-4" /> {copied ? 'Copiado' : 'Copiar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+
+      {/* Listado */}
+      <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
+        {keys === null ? (
+          <p className="text-sm text-gray-400 dark:text-slate-500">Cargando…</p>
+        ) : keys.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-slate-500">Aún no hay claves creadas.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+                <th className="py-2">Nombre</th>
+                <th className="py-2">Prefijo</th>
+                <th className="py-2">Creada</th>
+                <th className="py-2">Último uso</th>
+                <th className="py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k.id} className="border-b border-gray-50 dark:border-slate-800">
+                  <td className="py-2">{k.name || <span className="text-gray-400">—</span>}</td>
+                  <td className="py-2 font-mono text-xs">{k.prefix}…</td>
+                  <td className="py-2 text-xs text-gray-500 dark:text-slate-400">
+                    {k.created_at ? new Date(k.created_at).toLocaleDateString() : ''}
+                  </td>
+                  <td className="py-2 text-xs text-gray-500 dark:text-slate-400">
+                    {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'Nunca'}
+                  </td>
+                  <td className="py-2 text-right">
+                    <button
+                      className="text-red-600 hover:text-red-700 dark:text-red-400 inline-flex items-center gap-1 text-xs"
+                      onClick={() => revoke(k.id)}
+                    >
+                      <Trash2 className="h-4 w-4" /> Revocar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
   )
 }
 

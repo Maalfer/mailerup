@@ -1,11 +1,16 @@
 import csv
 import io
 import logging
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.core.validators import validate_email
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import SimpleRateThrottle
+from rest_framework.views import APIView
+from apps.accounts.authentication import ApiKeyAuthentication
 from rest_framework.response import Response
 from .models import SubscriberList, Subscriber
 from .serializers import SubscriberSerializer, SubscriberListSerializer
@@ -322,6 +327,70 @@ def add_subscriber(request):
         },
     )
     return Response(SubscriberSerializer(sub).data, status=201 if created else 200)
+
+
+class _ApiSubscribeIPThrottle(SimpleRateThrottle):
+    """Límite por IP evaluado ANTES de autenticar (en initial()), para que una
+    ráfaga de keys inválidas no quede sin límite: DRF comprueba los throttles
+    después de la auth, y un AuthenticationFailed se salta esa comprobación.
+    No mira request.user (evita forzar la auth perezosa)."""
+
+    scope = "api_subscribe_ip"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class _ApiKeyThrottle(SimpleRateThrottle):
+    """Límite por API key (no por usuario). Todas las keys autentican como el
+    admin compartido, así que un ScopedRateThrottle las metería en un único cubo;
+    esto aísla cada integración usando request.auth (la instancia ApiKey)."""
+
+    scope = "api_subscribe"
+
+    def get_cache_key(self, request, view):
+        key = getattr(request, "auth", None)
+        if key is None or getattr(key, "pk", None) is None:
+            return None   # sin key válida no aplica (ya lo cubre el throttle por IP)
+        return self.cache_format % {"scope": self.scope, "ident": str(key.pk)}
+
+
+class PublicAddSubscriberView(APIView):
+    """Alta de suscriptor vía API key externa (Authorization: Bearer <key>).
+    Crea directamente en estado activo (sin doble opt-in). Solo POST, sin lectura.
+    Autenticación exclusiva por API key (sin fallback de cookie JWT)."""
+
+    authentication_classes = [ApiKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [_ApiKeyThrottle]   # por-key; se evalúa tras autenticar
+
+    def initial(self, request, *args, **kwargs):
+        # Límite por IP pre-auth: acota el volumen total (incluidas keys inválidas)
+        # antes de que la auth pueda cortocircuitar la cadena de throttling.
+        ip_throttle = _ApiSubscribeIPThrottle()
+        if not ip_throttle.allow_request(request, self):
+            self.throttled(request, ip_throttle.wait())
+        super().initial(request, *args, **kwargs)
+
+    def post(self, request):
+        shared = get_admin_user() or request.user
+        lst = _resolve_list(request.data.get("list"), shared)   # grupo opcional, acotado al owner (evita IDOR)
+        email = (request.data.get("email") or "").strip().lower()
+        if not email:
+            return Response({"detail": "email requerido"}, status=400)
+        try:
+            validate_email(email)   # rechaza direcciones mal formadas / con saltos de línea
+        except ValidationError:
+            return Response({"detail": "email inválido"}, status=400)
+        sub, created = Subscriber.objects.get_or_create(
+            list=lst,
+            email=email,
+            defaults={
+                "first_name": (request.data.get("first_name") or "")[:100],
+                "last_name": (request.data.get("last_name") or "")[:100],
+            },
+        )
+        return Response(SubscriberSerializer(sub).data, status=201 if created else 200)
 
 
 def _csv_safe(value):

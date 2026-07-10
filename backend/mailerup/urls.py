@@ -7,6 +7,7 @@ from apps.analytics.views import (
 )
 from apps.forms.views import SubscribeView, VerifySubscriptionView
 from apps.campaigns.views import serve_resource
+from apps.subscribers.views import PublicAddSubscriberView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,6 +27,8 @@ urlpatterns = [
     path('api/auth/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/logout/', CookieTokenLogoutView.as_view(), name='token_logout'),
     path('api/auth/', include('apps.accounts.urls')),
+    # External API-key endpoint: crea suscriptores con Authorization: Bearer <key>
+    path('api/public/subscribers/', PublicAddSubscriberView.as_view(), name='public-add-subscriber'),
     # Apps
     path('api/subscribers/', include('apps.subscribers.urls')),
     path('api/campaigns/', include('apps.campaigns.urls')),

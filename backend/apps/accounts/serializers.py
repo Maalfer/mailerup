@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from .models import ApiKey
+
 User = get_user_model()
 
 
@@ -219,3 +221,13 @@ class AdminUserSerializer(serializers.ModelSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField()
     new_password = serializers.CharField(min_length=8)
+
+
+class ApiKeySerializer(serializers.ModelSerializer):
+    """Read serializer for API keys. NEVER exposes `hashed_key` nor the raw key
+    (the raw value is only returned once, injected by the create view)."""
+
+    class Meta:
+        model = ApiKey
+        fields = ("id", "name", "prefix", "is_active", "created_at", "last_used_at")
+        read_only_fields = fields

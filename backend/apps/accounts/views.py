@@ -10,9 +10,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .models import ApiKey
 from .serializers import (
-    UserSerializer, ChangePasswordSerializer, AdminUserSerializer,
+    UserSerializer, ChangePasswordSerializer, AdminUserSerializer, ApiKeySerializer,
 )
+from .serializers import get_admin_user
 
 User = get_user_model()
 
@@ -281,6 +283,29 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().update(request, *args, **kwargs)
+
+
+# --- Admin-only: API keys for the external subscriber endpoint ----------
+
+class ApiKeyListCreateView(generics.ListCreateAPIView):
+    permission_classes = (IsAdminUser,)
+    serializer_class = ApiKeySerializer
+    queryset = ApiKey.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        # Keys belong to the shared admin owner (data ownership stays via get_admin_user()).
+        owner = get_admin_user() or request.user
+        name = (request.data.get("name") or "").strip()[:100]
+        key, raw = ApiKey.generate(user=owner, name=name)
+        data = ApiKeySerializer(key).data
+        data["key"] = raw  # shown ONCE; never retrievable again
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class ApiKeyDetailView(generics.RetrieveDestroyAPIView):
+    permission_classes = (IsAdminUser,)
+    serializer_class = ApiKeySerializer
+    queryset = ApiKey.objects.all()
 
 
 # --- Admin-only: download SQLite database -------------------------------

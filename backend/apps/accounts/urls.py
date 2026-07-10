@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     MeView, ChangePasswordView, email_providers, test_email,
     AdminUserListView, AdminUserDetailView, db_export,
+    ApiKeyListCreateView, ApiKeyDetailView,
 )
 
 urlpatterns = [
@@ -14,5 +15,7 @@ urlpatterns = [
     # admin-only
     path("users/", AdminUserListView.as_view()),
     path("users/<int:pk>/", AdminUserDetailView.as_view()),
+    path("api-keys/", ApiKeyListCreateView.as_view()),
+    path("api-keys/<uuid:pk>/", ApiKeyDetailView.as_view()),
     path("db-export/", db_export),
 ]
