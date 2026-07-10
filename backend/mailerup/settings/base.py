@@ -171,5 +171,5 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 SPECTACULAR_SETTINGS = {
     "TITLE": "MailerUp API",
     "DESCRIPTION": "Email marketing platform API",
-    "VERSION": "1.1.1",
+    "VERSION": "1.1.2",
 }
