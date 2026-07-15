@@ -98,15 +98,23 @@ def _build_embed_html(form, base):
 
 
 def _verification_email_html(form_obj, greeting, verify_url):
-    """Returns the HTML body for the double-opt-in verification email."""
+    """Returns the HTML body for the double-opt-in verification email.
+
+    `greeting` must already be HTML-escaped by the caller (it embeds the
+    unauthenticated subscriber-supplied first_name); form_obj.title and
+    primary_color are form-owner-controlled but escaped/validated here too,
+    same as _build_embed_html, since this HTML is emailed out verbatim.
+    """
+    safe_title = escape(form_obj.title)
+    color = _safe_color(form_obj.primary_color)
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;padding:20px">
 <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:36px;border:1px solid #e2e8f0">
-  <h2 style="margin:0 0 8px;color:#111827">{form_obj.title}</h2>
+  <h2 style="margin:0 0 8px;color:#111827">{safe_title}</h2>
   <p style="color:#374151;margin:0 0 24px">{greeting} Por favor confirma tu suscripcion haciendo clic en el boton:</p>
   <p style="text-align:center;margin:0 0 24px">
-    <a href="{verify_url}" style="display:inline-block;padding:12px 28px;background:{form_obj.primary_color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">
+    <a href="{verify_url}" style="display:inline-block;padding:12px 28px;background:{color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">
       Confirmar suscripcion
     </a>
   </p>
@@ -132,7 +140,8 @@ def _send_verification_email(form_obj, email, first_name, verify_url):
         return
 
     sender = get_sender(form_obj.user)
-    greeting = f"Hola {first_name}," if first_name else "Hola,"
+    safe_first_name = escape(first_name)
+    greeting = f"Hola {safe_first_name}," if safe_first_name else "Hola,"
     html = _verification_email_html(form_obj, greeting, verify_url)
 
     try:
