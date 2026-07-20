@@ -211,6 +211,12 @@ class UnsubscribeView(APIView):
                     EmailUnsubscribe.objects.create(campaign=campaign, subscriber=subscriber)
                 except Campaign.DoesNotExist:
                     pass
+            # La baja debe cortar también cualquier secuencia de automatización
+            # en curso: sin esto la matrícula seguía "active" y el scheduler
+            # continuaba enviando los pasos pendientes pese a la baja.
+            AutomationEnrollment.objects.filter(
+                subscriber=subscriber, status="active"
+            ).update(status="cancelled")
         return subscriber, already
 
     def post(self, request, token):

@@ -61,8 +61,11 @@ def process_automation_queue():
 
     base = settings.PUBLIC_BASE_URL.rstrip("/")
     now = timezone.now()
+    # subscriber__status="active": red de seguridad. Si el suscriptor se dio de
+    # baja (o rebotó/quejó) mientras la matrícula seguía activa, no debe
+    # seguir recibiendo los pasos pendientes de la secuencia.
     active_enrollments = AutomationEnrollment.objects.filter(
-        status="active"
+        status="active", subscriber__status="active"
     ).select_related("automation", "automation__user", "subscriber")
 
     for enrollment in active_enrollments:

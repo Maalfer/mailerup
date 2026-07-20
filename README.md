@@ -4,7 +4,7 @@
 
 # MailerUp
 
-**Versión 1.1.3**
+**Versión 1.1.4**
 
 Plataforma autoalojada de newsletter al estilo MailerLite/Mailchimp: gestiona suscriptores, crea correos con un editor enriquecido, envíalos al instante o prográmalos, y mide aperturas y clics. Pensada para correr en una VPS modesta (despliegue **nativo**: PostgreSQL + systemd/uvicorn + nginx — ver [`deploy/README.md`](deploy/README.md)) con SMTP de tu hosting o Postfix local (Raiola, Gmail, Outlook, IONOS…), sin depender de servicios externos de pago.
 
