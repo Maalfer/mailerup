@@ -63,7 +63,14 @@ def _promote_due_scheduled():
 
 def _tick():
     global _allowance
+    from django.db import close_old_connections
     from .tasks import process_sending_campaigns
+
+    # Este hilo vive fuera del ciclo request/response, así que Django nunca
+    # detecta ni repone conexiones muertas (p.ej. tras un restart de postgres
+    # por unattended-upgrades). Lo hacemos a mano en cada tick, igual que
+    # Django hace automáticamente por request.
+    close_old_connections()
 
     _promote_due_scheduled()
 
