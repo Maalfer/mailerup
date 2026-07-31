@@ -31,6 +31,7 @@ TICK_SECONDS = getattr(settings, "CAMPAIGN_SEND_INTERVAL_SECONDS", 15)
 # Tasa por defecto (correos/hora) si no hay admin o el campo viene vacío.
 DEFAULT_RATE_PER_HOUR = getattr(settings, "CAMPAIGN_SEND_RATE_PER_HOUR", 300)
 AUTOMATION_EVERY_SECONDS = 60
+BOUNCE_EVERY_SECONDS = 120
 
 _allowance = 0.0  # "tokens" acumulados (correos que ya podemos enviar)
 
@@ -90,6 +91,7 @@ def _tick():
 
 def _loop():
     last_automation = 0.0
+    last_bounce = 0.0
     while True:
         try:
             _tick()
@@ -104,6 +106,18 @@ def _loop():
                 process_automation_queue.delay()
             except Exception:
                 log.exception("Failed to dispatch process_automation_queue")
+
+        if now - last_bounce >= BOUNCE_EVERY_SECONDS:
+            last_bounce = now
+            try:
+                from django.db import close_old_connections
+                close_old_connections()
+                from apps.analytics.bounce_processing import process_bounce_mailbox
+                n = process_bounce_mailbox()
+                if n:
+                    log.info("Scheduler: %s rebote(s) registrados", n)
+            except Exception:
+                log.exception("Fallo procesando el buzón de rebotes")
 
         time.sleep(TICK_SECONDS)
 

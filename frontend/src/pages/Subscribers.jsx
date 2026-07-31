@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus, Upload, Download, Trash2, X, Users, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Search, Layers, Pencil } from 'lucide-react'
 import api from '../api'
 
+const STATUS_LABELS = {
+  active: 'Activo',
+  unsubscribed: 'Dado de baja',
+  bounced: 'Rebotado',
+  complained: 'Queja spam',
+}
+
 function GroupsModal({ groups, onClose, onChanged }) {
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -589,8 +596,14 @@ export default function Subscribers() {
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{s.email}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{[s.first_name, s.last_name].filter(Boolean).join(' ') || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`badge ${s.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                        {s.status}
+                      <span className={`badge ${
+                        s.status === 'active'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : s.status === 'bounced' || s.status === 'complained'
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                            : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'
+                      }`}>
+                        {STATUS_LABELS[s.status] || s.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{new Date(s.subscribed_at).toLocaleDateString()}</td>

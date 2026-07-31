@@ -86,16 +86,20 @@ class Campaign(models.Model):
         sends = self.sends.all()
         total = sends.count()
         if total == 0:
-            return {'total': 0, 'opens': 0, 'clicks': 0, 'unsubscribes': 0, 'bounces': 0}
+            return {'total': 0, 'delivered': 0, 'opens': 0, 'clicks': 0, 'unsubscribes': 0, 'bounces': 0}
         from apps.analytics.models import EmailOpen, EmailClick
+        # Las tasas se calculan sobre lo entregado, no sobre lo intentado: un
+        # envío que falló nunca pudo abrirse ni clicarse.
+        delivered = sends.exclude(provider_message_id__startswith='error:').count()
         opens = EmailOpen.objects.filter(campaign=self).values('subscriber').distinct().count()
         clicks = EmailClick.objects.filter(campaign=self).values('subscriber').distinct().count()
         return {
             'total': total,
+            'delivered': delivered,
             'opens': opens,
             'clicks': clicks,
-            'open_rate': round(opens / total * 100, 1) if total else 0,
-            'click_rate': round(clicks / total * 100, 1) if total else 0,
+            'open_rate': round(opens / delivered * 100, 1) if delivered else 0,
+            'click_rate': round(clicks / delivered * 100, 1) if delivered else 0,
         }
 
 

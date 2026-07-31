@@ -154,6 +154,12 @@ CAMPAIGN_SEND_INTERVAL_SECONDS = env.int("CAMPAIGN_SEND_INTERVAL_SECONDS", defau
 # escalar a varios workers: deja un único proceso dedicado al scheduler).
 DISABLE_SCHEDULER = env.bool("MAILERUP_DISABLE_SCHEDULER", default=False)
 
+# Maildir local donde caen los NDR (rebotes) del buzón BOUNCE_EMAIL — el
+# scheduler lo lee periódicamente para registrar EmailBounce y marcar
+# suscriptores en rebote duro. Vacío = ingesta de rebotes desactivada (no
+# todos los despliegues tienen un buzón de rebotes local en el mismo host).
+BOUNCE_MAILDIR_PATH = env("BOUNCE_MAILDIR_PATH", default="")
+
 # Email provider (Brevo or SendGrid)
 EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="brevo")
 BREVO_API_KEY = env("BREVO_API_KEY", default="")

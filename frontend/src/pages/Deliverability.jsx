@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail } from 'lucide-react'
+import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning } from 'lucide-react'
 import api from '../api'
 
 const fmtDateTime = (s) =>
@@ -224,6 +224,7 @@ export default function Deliverability() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi icon={CheckCircle2} tone="ok" label="Tasa de éxito" value={`${data.success_rate}%`} sub={`${data.ok} entregados`} />
         <Kpi icon={XCircle} tone="err" label="Tasa de error" value={`${data.error_rate}%`} sub={`${data.errored} con error`} />
+        <Kpi icon={MailWarning} tone="err" label="Tasa de rebote" value={`${data.bounce_rate ?? 0}%`} sub={`${data.total_bounces ?? 0} rebotes (${data.hard_bounces ?? 0} duros)`} />
         <Kpi icon={Send} label="Total enviados" value={data.total_sends} />
         <Kpi icon={Activity} label="Ritmo actual" value={`${data.rate_per_hour}/h`} sub="configurable en Ajustes" />
       </div>
@@ -346,6 +347,44 @@ export default function Deliverability() {
             <p className="text-xs text-gray-400 dark:text-slate-500 mt-3">
               Al reintentar, los fallidos vuelven a la cola y se reenvían poco a poco al ritmo configurado. Los que sí
               llegaron no se reenvían.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-5">
+        <h2 className="font-semibold mb-3 flex items-center gap-2">
+          <MailWarning className="h-4 w-4 text-rose-500" /> Rebotes (rechazados tras la entrega)
+        </h2>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">
+          A diferencia de "Envíos fallidos" (el propio servidor rechazó el correo al enviarlo), esto son
+          rebotes reales devueltos por el proveedor destino (buzón lleno, dirección inexistente, bloqueo
+          antispam…). Los duros dan de baja automáticamente al suscriptor para no seguir enviándole.
+        </p>
+        {!data.total_bounces ? (
+          <p className="text-sm text-gray-500 dark:text-slate-400">No hay rebotes registrados.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" aria-label="Motivos de rebote">
+              <thead className="text-gray-500 dark:text-slate-400 text-xs uppercase">
+                <tr>
+                  <th scope="col" className="text-left py-2">Motivo del rebote</th>
+                  <th scope="col" className="text-right py-2">Nº</th>
+                  <th scope="col" className="text-right py-2">%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                {(data.top_bounce_reasons || []).map((e, i) => (
+                  <tr key={i}>
+                    <td className="py-2 pr-3 text-gray-700 dark:text-slate-300 break-words">{e.reason}</td>
+                    <td className="py-2 text-right text-gray-700 dark:text-slate-300">{e.count}</td>
+                    <td className="py-2 text-right text-gray-500 dark:text-slate-400">{e.rate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-3">
+              {data.hard_bounces} duros · {data.soft_bounces} blandos
             </p>
           </div>
         )}

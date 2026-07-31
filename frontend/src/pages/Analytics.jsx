@@ -2,7 +2,7 @@ import { useEffect, useState, Fragment } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Users, Mail, MailOpen, MousePointerClick, UserMinus, UserPlus,
-  TrendingUp, BarChart3, ArrowLeft, ExternalLink, Zap, ChevronDown, ChevronRight,
+  TrendingUp, BarChart3, ArrowLeft, ExternalLink, Zap, ChevronDown, ChevronRight, MailWarning,
 } from 'lucide-react'
 import api from '../api'
 
@@ -94,6 +94,7 @@ export default function Analytics() {
         <Kpi icon={MousePointerClick} label="Clic medio"           value={`${data.avg_click_rate}%`}   sub={`${data.total_clicks} clics únicos`} />
         <Kpi icon={BarChart3}        label="Campañas enviadas"    value={data.sent_campaigns} sub={`${data.total_campaigns} totales`} />
         <Kpi icon={UserMinus}        label="Bajas totales"        value={data.total_unsubscribes} sub={`${data.total_unsubscribed} en la lista`} />
+        <Kpi icon={MailWarning}      label="Rebotes totales"      value={data.total_bounces} sub={`${data.total_bounced} suscriptores rebotados`} />
         <Kpi icon={TrendingUp}       label="Aperturas totales"    value={data.total_opens} />
         <Kpi icon={MousePointerClick} label="Clics totales"        value={data.total_clicks} />
       </div>
@@ -365,10 +366,11 @@ function CampaignDetail({ data, onBack }) {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi icon={Mail}              label="Enviados"           value={data.sends} />
-        <Kpi icon={MailOpen}          label="Tasa de apertura"   value={`${data.open_rate}%`} sub={`${data.opens} de ${data.sends}`} />
-        <Kpi icon={MousePointerClick} label="Tasa de clic"       value={`${data.click_rate}%`} sub={`${data.clicks} de ${data.sends}`} />
-        <Kpi icon={UserMinus}         label="Bajas"              value={`${data.unsubscribe_rate}%`} sub={`${data.unsubscribes} de ${data.sends}`} />
+        <Kpi icon={Mail}              label="Enviados"           value={data.sends} sub={data.errored ? `${data.delivered} entregados · ${data.errored} con error` : undefined} />
+        <Kpi icon={MailOpen}          label="Tasa de apertura"   value={`${data.open_rate}%`} sub={`${data.opens} de ${data.delivered}`} />
+        <Kpi icon={MousePointerClick} label="Tasa de clic"       value={`${data.click_rate}%`} sub={`${data.clicks} de ${data.delivered}`} />
+        <Kpi icon={UserMinus}         label="Bajas"              value={`${data.unsubscribe_rate}%`} sub={`${data.unsubscribes} de ${data.delivered}`} />
+        <Kpi icon={MailWarning}       label="Rebotes"            value={`${data.bounce_rate ?? 0}%`} sub={`${data.hard_bounces ?? 0} duros · ${data.soft_bounces ?? 0} blandos`} />
         <Kpi icon={Users}             label="Sin abrir"          value={data.not_opened} />
         <Kpi icon={Users}             label="Sin hacer clic"     value={data.not_clicked} />
         <Kpi icon={TrendingUp}        label="CTR de aperturas"   value={`${data.click_through_open_rate}%`}

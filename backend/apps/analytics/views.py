@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from apps.campaigns.models import Campaign, CampaignSend
 from apps.subscribers.models import Subscriber
 from .models import (
-    EmailOpen, EmailClick, EmailUnsubscribe,
+    EmailOpen, EmailClick, EmailUnsubscribe, EmailBounce,
     AutomationEmailOpen, AutomationEmailClick,
 )
 from apps.automations.models import (
@@ -260,10 +260,20 @@ class UnsubscribeView(APIView):
 
 
 def _campaign_stats(campaign):
-    sends = campaign.sends.count()
+    sends_qs = campaign.sends.all()
+    sends = sends_qs.count()
+    errored = sends_qs.filter(provider_message_id__startswith="error:").count()
+    # Las tasas se calculan sobre lo REALMENTE entregado (sends - error de
+    # envío inmediato). Un correo que nunca salió del servidor no puede
+    # abrirse ni clicarse: incluirlo en el denominador infla artificialmente
+    # a la baja el open/click rate.
+    delivered = sends - errored
     unique_opens = EmailOpen.objects.filter(campaign=campaign).values("subscriber").distinct().count()
     unique_clicks = EmailClick.objects.filter(campaign=campaign).values("subscriber").distinct().count()
     unsubs = EmailUnsubscribe.objects.filter(campaign=campaign).count()
+    bounces_qs = EmailBounce.objects.filter(campaign=campaign)
+    hard_bounces = bounces_qs.filter(bounce_type="hard").count()
+    soft_bounces = bounces_qs.filter(bounce_type="soft").count()
     return {
         "id": str(campaign.id),
         "name": campaign.name,
@@ -271,26 +281,34 @@ def _campaign_stats(campaign):
         "status": campaign.status,
         "sent_at": campaign.sent_at,
         "sends": sends,
+        "delivered": delivered,
+        "errored": errored,
         "opens": unique_opens,
         "clicks": unique_clicks,
         "unsubscribes": unsubs,
-        "not_opened": max(sends - unique_opens, 0),
-        "not_clicked": max(sends - unique_clicks, 0),
-        "open_rate": round(unique_opens / sends * 100, 1) if sends else 0,
-        "click_rate": round(unique_clicks / sends * 100, 1) if sends else 0,
+        "hard_bounces": hard_bounces,
+        "soft_bounces": soft_bounces,
+        "not_opened": max(delivered - unique_opens, 0),
+        "not_clicked": max(delivered - unique_clicks, 0),
+        "open_rate": round(unique_opens / delivered * 100, 1) if delivered else 0,
+        "click_rate": round(unique_clicks / delivered * 100, 1) if delivered else 0,
         "click_through_open_rate": round(unique_clicks / unique_opens * 100, 1) if unique_opens else 0,
-        "unsubscribe_rate": round(unsubs / sends * 100, 1) if sends else 0,
+        "unsubscribe_rate": round(unsubs / delivered * 100, 1) if delivered else 0,
+        "bounce_rate": round((hard_bounces + soft_bounces) / delivered * 100, 1) if delivered else 0,
         "ab_enabled": campaign.ab_enabled,
     }
 
 
 def _ab_variant_stats(campaign, variant):
     """Return send/open/click stats for a single A/B variant."""
-    send_ids = CampaignSend.objects.filter(
-        campaign=campaign, ab_variant=variant
-    ).values_list("subscriber_id", flat=True)
-    send_ids = list(send_ids)
-    sends = len(send_ids)
+    variant_sends = CampaignSend.objects.filter(campaign=campaign, ab_variant=variant)
+    sends = variant_sends.count()
+    # Solo los entregados (sin error de envío) cuentan como base de las tasas.
+    send_ids = list(
+        variant_sends.exclude(provider_message_id__startswith="error:")
+        .values_list("subscriber_id", flat=True)
+    )
+    delivered = len(send_ids)
     opens = EmailOpen.objects.filter(
         campaign=campaign, subscriber_id__in=send_ids
     ).values("subscriber").distinct().count()
@@ -299,10 +317,11 @@ def _ab_variant_stats(campaign, variant):
     ).values("subscriber").distinct().count()
     return {
         "sends": sends,
+        "delivered": delivered,
         "opens": opens,
         "clicks": clicks,
-        "open_rate": round(opens / sends * 100, 1) if sends else 0,
-        "click_rate": round(clicks / sends * 100, 1) if sends else 0,
+        "open_rate": round(opens / delivered * 100, 1) if delivered else 0,
+        "click_rate": round(clicks / delivered * 100, 1) if delivered else 0,
     }
 
 
@@ -313,27 +332,35 @@ def overview(request):
     campaigns_qs = Campaign.objects.filter(user=user)
     sent_qs = campaigns_qs.filter(status="sent")
 
-    total_sends = CampaignSend.objects.filter(campaign__user=user).count()
+    total_sends_qs = CampaignSend.objects.filter(campaign__user=user)
+    total_sends = total_sends_qs.count()
+    total_errored = total_sends_qs.filter(provider_message_id__startswith="error:").count()
+    total_delivered = total_sends - total_errored
     unique_opens = EmailOpen.objects.filter(campaign__user=user).values("subscriber").distinct().count()
     unique_clicks = EmailClick.objects.filter(campaign__user=user).values("subscriber").distinct().count()
     unsubs = EmailUnsubscribe.objects.filter(campaign__user=user).count()
+    total_bounces = EmailBounce.objects.filter(subscriber__list__user=user).count()
 
     total_subscribers = Subscriber.objects.filter(list__user=user, status="active").count()
     total_unsubscribed = Subscriber.objects.filter(list__user=user, status="unsubscribed").count()
+    total_bounced = Subscriber.objects.filter(list__user=user, status="bounced").count()
 
     per_campaign = [_campaign_stats(c) for c in sent_qs.order_by("-sent_at")]
 
     return Response({
         "total_subscribers": total_subscribers,
         "total_unsubscribed": total_unsubscribed,
+        "total_bounced": total_bounced,
         "total_campaigns": campaigns_qs.count(),
         "sent_campaigns": sent_qs.count(),
         "total_sends": total_sends,
+        "total_delivered": total_delivered,
         "total_opens": unique_opens,
         "total_clicks": unique_clicks,
         "total_unsubscribes": unsubs,
-        "avg_open_rate": round(unique_opens / total_sends * 100, 1) if total_sends else 0,
-        "avg_click_rate": round(unique_clicks / total_sends * 100, 1) if total_sends else 0,
+        "total_bounces": total_bounces,
+        "avg_open_rate": round(unique_opens / total_delivered * 100, 1) if total_delivered else 0,
+        "avg_click_rate": round(unique_clicks / total_delivered * 100, 1) if total_delivered else 0,
         "campaigns": per_campaign,
     })
 
@@ -621,6 +648,22 @@ def deliverability(request):
         for r, n in reasons.most_common(15)
     ]
 
+    # Rebotes REALES (NDR post-entrega), a diferencia de `errored` arriba que
+    # solo son fallos síncronos del propio envío. Requieren el pipeline de
+    # ingesta del buzón de rebotes (ver bounce_processing.py); si no está
+    # configurado, estos contadores se quedan a 0 sin romper nada.
+    bounces = EmailBounce.objects.filter(subscriber__list__user=user)
+    hard_bounces = bounces.filter(bounce_type="hard").count()
+    soft_bounces = bounces.filter(bounce_type="soft").count()
+    total_bounces = hard_bounces + soft_bounces
+    bounce_reasons = Counter()
+    for reason in bounces.values_list("reason", flat=True):
+        bounce_reasons[(reason.strip() or "(desconocido)")[:140]] += 1
+    top_bounce_reasons = [
+        {"reason": r, "count": n, "rate": round(n / total_bounces * 100, 1) if total_bounces else 0}
+        for r, n in bounce_reasons.most_common(15)
+    ]
+
     sending = []
     total_pending = 0
     for c in Campaign.objects.filter(user=user, status__in=("sending", "paused")).order_by("created_at"):
@@ -656,6 +699,11 @@ def deliverability(request):
         "success_rate": round(ok / total * 100, 1) if total else 0,
         "error_rate": round(errored / total * 100, 1) if total else 0,
         "top_errors": top_errors,
+        "hard_bounces": hard_bounces,
+        "soft_bounces": soft_bounces,
+        "total_bounces": total_bounces,
+        "bounce_rate": round(total_bounces / ok * 100, 1) if ok else 0,
+        "top_bounce_reasons": top_bounce_reasons,
         "sending": sending,
         "sent": sent_campaigns,
         "rate_per_hour": rate,

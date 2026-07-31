@@ -25,7 +25,14 @@ class EmailClick(models.Model):
 
 class EmailBounce(models.Model):
     BOUNCE_TYPES = [("hard", "Duro"), ("soft", "Suave")]
-    campaign = models.ForeignKey("campaigns.Campaign", on_delete=models.CASCADE, related_name="bounces")
+    # Nullable: el rebote (NDR) solo trae el email del destinatario, no a qué
+    # campaña pertenecía. Se atribuye best-effort al CampaignSend más reciente
+    # de ese suscriptor; si no hay ninguno (p.ej. vino de una automatización)
+    # se guarda sin campaña.
+    campaign = models.ForeignKey(
+        "campaigns.Campaign", on_delete=models.CASCADE, related_name="bounces",
+        null=True, blank=True,
+    )
     subscriber = models.ForeignKey("subscribers.Subscriber", on_delete=models.CASCADE)
     bounce_type = models.CharField(max_length=10, choices=BOUNCE_TYPES)
     reason = models.CharField(max_length=500, blank=True)
