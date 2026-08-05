@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning } from 'lucide-react'
+import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../api'
 
 const fmtDateTime = (s) =>
@@ -140,6 +140,70 @@ function RecipientsModal({ campaign, onClose }) {
   )
 }
 
+// Modal con la vista previa del correo TAL CUAL lo reciben los suscriptores
+// (HTML personalizado + pie de baja), renderizado en un iframe aislado.
+function PreviewModal({ campaign, onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setError(false)
+    api
+      .get(`/campaigns/${campaign.id}/preview/`)
+      .then((r) => { if (!cancelled) setData(r.data) })
+      .catch(() => { if (!cancelled) setError(true) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [campaign.id])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-title"
+        className="card w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
+          <div className="min-w-0">
+            <h2 id="preview-title" className="text-base sm:text-lg font-semibold truncate flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary-600 dark:text-primary-400 flex-shrink-0" />
+              <span className="truncate">{data?.subject || campaign.name}</span>
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+              {data?.from_name ? `${data.from_name} · ` : ''}
+              {data?.from_email || 'Vista previa del correo'}
+            </p>
+          </div>
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden bg-white">
+          {loading ? (
+            <p className="p-6 text-sm text-gray-500" role="status">Cargando vista previa…</p>
+          ) : error ? (
+            <p className="p-6 text-sm text-red-600" role="alert">No se pudo cargar la vista previa del correo.</p>
+          ) : (
+            <iframe
+              title="Vista previa del correo"
+              srcDoc={data.html}
+              sandbox=""
+              className="w-full h-full min-h-[55vh] sm:min-h-[60vh] border-0 bg-white"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Kpi({ icon: Icon, label, value, sub, tone }) {
   const toneCls = tone === 'ok'
     ? 'text-emerald-600 dark:text-emerald-400'
@@ -163,13 +227,15 @@ export default function Deliverability() {
   const [retrying, setRetrying] = useState(false)
   const [msg, setMsg] = useState(null)
   const [openCampaign, setOpenCampaign] = useState(null) // campaña cuyos destinatarios se ven
+  const [previewCampaign, setPreviewCampaign] = useState(null) // campaña cuyo correo se previsualiza
+  const [sentPage, setSentPage] = useState(1) // paginación de "Correos enviados"
 
   const load = useCallback(() => {
-    api.get('/analytics/deliverability/')
+    api.get('/analytics/deliverability/', { params: { sent_page: sentPage, sent_page_size: 10 } })
       .then((r) => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [sentPage])
 
   useEffect(() => {
     load()
@@ -239,15 +305,18 @@ export default function Deliverability() {
           <div className="space-y-4">
             {data.sending.map((c) => (
               <div key={c.id}>
-                <div className="flex items-center justify-between text-sm mb-1 gap-2">
-                  <span className="font-medium text-gray-800 dark:text-slate-200 truncate flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2 text-sm mb-1">
+                  <span className="font-medium text-gray-800 dark:text-slate-200 truncate flex items-center gap-2 min-w-0">
                     {c.name}
                     {c.status === 'paused' && (
                       <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pausada</span>
                     )}
                   </span>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center flex-wrap gap-2 sm:flex-shrink-0">
                     <span className="text-gray-500 dark:text-slate-400">{c.sent}/{c.total} · {c.progress}%</span>
+                    <button onClick={() => setPreviewCampaign({ id: c.id, name: c.name })} aria-label="Ver correo" title="Ver cómo se recibe el correo" className="btn-secondary text-xs py-1 px-2 flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" /> Ver
+                    </button>
                     <button onClick={() => setOpenCampaign({ id: c.id, name: c.name })} className="btn-secondary text-xs py-1 px-2 flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" /> Destinatarios
                     </button>
@@ -284,24 +353,63 @@ export default function Deliverability() {
         {!data.sent || data.sent.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-slate-400">Todavía no has enviado ningún correo.</p>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-slate-700">
-            {data.sent.map((c) => (
-              <li key={c.id} className="py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-slate-200 truncate">{c.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                    {c.sends} destinatario{c.sends === 1 ? '' : 's'} · {fmtDateTime(c.sent_at)}
+          <>
+            <ul className="divide-y divide-gray-100 dark:divide-slate-700">
+              {data.sent.map((c) => (
+                <li key={c.id} className="py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-800 dark:text-slate-200 truncate">{c.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                      {c.sends} destinatario{c.sends === 1 ? '' : 's'} · {fmtDateTime(c.sent_at)}
+                    </div>
                   </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => setPreviewCampaign({ id: c.id, name: c.name })}
+                      aria-label="Ver correo"
+                      title="Ver cómo se recibe el correo"
+                      className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Ver</span>
+                    </button>
+                    <button
+                      onClick={() => setOpenCampaign({ id: c.id, name: c.name })}
+                      aria-label="Destinatarios"
+                      title="Ver destinatarios"
+                      className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
+                    >
+                      <Users className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Destinatarios</span>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {data.sent_pages > 1 && (
+              <div className="flex items-center justify-between gap-2 pt-3 mt-1 border-t border-gray-100 dark:border-slate-700">
+                <span className="text-xs text-gray-500 dark:text-slate-400">
+                  {data.sent_total} correos · pág. {data.sent_page}/{data.sent_pages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setSentPage((p) => Math.max(1, p - 1))}
+                    disabled={data.sent_page <= 1}
+                    aria-label="Página anterior"
+                    className="btn-secondary text-xs py-1 px-2 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Anterior</span>
+                  </button>
+                  <button
+                    onClick={() => setSentPage((p) => Math.min(data.sent_pages, p + 1))}
+                    disabled={data.sent_page >= data.sent_pages}
+                    aria-label="Página siguiente"
+                    className="btn-secondary text-xs py-1 px-2 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setOpenCampaign({ id: c.id, name: c.name })}
-                  className="btn-secondary text-xs py-1 px-2 flex items-center gap-1 flex-shrink-0"
-                >
-                  <Users className="h-3.5 w-3.5" /> Destinatarios
-                </button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -392,6 +500,9 @@ export default function Deliverability() {
 
       {openCampaign && (
         <RecipientsModal campaign={openCampaign} onClose={() => setOpenCampaign(null)} />
+      )}
+      {previewCampaign && (
+        <PreviewModal campaign={previewCampaign} onClose={() => setPreviewCampaign(null)} />
       )}
     </div>
   )

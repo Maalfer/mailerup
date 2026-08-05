@@ -245,6 +245,27 @@ class CampaignViewSet(viewsets.ModelViewSet):
         campaign.save()
         return Response(CampaignSerializer(campaign).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["get"])
+    def preview(self, request, pk=None):
+        """HTML del correo TAL CUAL lo reciben los suscriptores: personalizado con
+        un destinatario de ejemplo, con el pie de baja y los enlaces reescritos
+        (mismo `_personalize` que el envío real). Para verlo en un visor/iframe."""
+        campaign = self.get_object()
+        from apps.subscribers.models import Subscriber
+        # Suscriptor "fantasma" con UUID aleatorio (no existe en la BD): los tokens
+        # de baja/tracking son válidos pero no resuelven a nadie, igual que send_test.
+        ghost = Subscriber(
+            id=uuid.uuid4(), email="suscriptor@ejemplo.com",
+            first_name="Nombre", last_name="Apellido",
+        )
+        html = _personalize(campaign.html_content, ghost, campaign)
+        return Response({
+            "html": html,
+            "subject": campaign.subject,
+            "from_name": campaign.from_name,
+            "from_email": campaign.from_email,
+        })
+
 
 import os
 from pathlib import Path

@@ -434,6 +434,15 @@ async def get_campaign(campaign_id: str) -> Any:
 
 
 @mcp.tool()
+async def preview_campaign(campaign_id: str) -> Any:
+    """Devuelve el HTML del correo TAL CUAL lo reciben los suscriptores:
+    personalizado con un destinatario de ejemplo, con pie de baja y enlaces
+    reescritos (mismo render que el envío real). Útil para revisar el correo
+    antes de enviarlo o para inspeccionar uno ya enviado."""
+    return await client().get(f"/api/campaigns/{campaign_id}/preview/")
+
+
+@mcp.tool()
 async def create_campaign(
     name: str,
     subject: str,

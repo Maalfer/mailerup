@@ -678,17 +678,34 @@ def deliverability(request):
             "progress": round(sent / tot * 100, 1) if tot else 0,
         })
 
-    # Correos ya enviados (para poder consultar sus destinatarios desde aquí).
+    # Correos ya enviados (para consultar destinatarios y ver la vista previa).
+    # Paginado: la lista crece con el tiempo, así que se sirve por páginas
+    # (?sent_page=&sent_page_size=). Aditivo y retrocompatible: `sent` sigue
+    # existiendo (ahora es la página actual) y se añaden los metadatos de paginación.
+    from django.core.paginator import Paginator
+
+    sent_qs = (
+        Campaign.objects.filter(user=user, status="sent")
+        .annotate(n=Count("sends"))
+        .order_by("-sent_at")
+    )
+    try:
+        sent_page = int(request.GET.get("sent_page", 1))
+    except (TypeError, ValueError):
+        sent_page = 1
+    try:
+        sent_page_size = int(request.GET.get("sent_page_size", 10))
+    except (TypeError, ValueError):
+        sent_page_size = 10
+    sent_page_size = max(1, min(sent_page_size, 50))
+    sent_paginator = Paginator(sent_qs, sent_page_size)
+    sent_page_obj = sent_paginator.get_page(sent_page)
     sent_campaigns = [
         {
             "id": str(c.id), "name": c.name, "subject": c.subject,
             "sent_at": c.sent_at, "sends": c.n,
         }
-        for c in (
-            Campaign.objects.filter(user=user, status="sent")
-            .annotate(n=Count("sends"))
-            .order_by("-sent_at")[:50]
-        )
+        for c in sent_page_obj.object_list
     ]
 
     rate = max(1, int(getattr(user, "send_rate_per_hour", 300) or 300))
@@ -706,6 +723,10 @@ def deliverability(request):
         "top_bounce_reasons": top_bounce_reasons,
         "sending": sending,
         "sent": sent_campaigns,
+        "sent_total": sent_paginator.count,
+        "sent_pages": sent_paginator.num_pages,
+        "sent_page": sent_page_obj.number,
+        "sent_page_size": sent_page_size,
         "rate_per_hour": rate,
         "total_pending": total_pending,
         "eta_hours": round(total_pending / rate, 1) if total_pending else 0,
