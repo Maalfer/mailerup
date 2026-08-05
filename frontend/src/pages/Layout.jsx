@@ -56,7 +56,7 @@ export default function Layout() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex h-16 items-center gap-3 border-b border-gray-200 dark:border-slate-700 px-5">
-          <img src="/logo.png?v=2" alt="MailerUp" className="h-9 w-9 object-contain" />
+          <img src="/logo.png?v=2" alt="MailerUp" className="h-9 w-9 object-contain rounded-lg dark:bg-white dark:p-0.5" />
           <span className="text-lg font-semibold">MailerUp</span>
           <span className="text-[10px] font-medium leading-none text-gray-400 dark:text-slate-500 self-end mb-1.5">v{__APP_VERSION__}</span>
           {/* Botón cerrar en móvil */}
@@ -132,7 +132,7 @@ export default function Layout() {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <img src="/logo.png?v=2" alt="MailerUp" className="h-7 w-7 object-contain" />
+          <img src="/logo.png?v=2" alt="MailerUp" className="h-7 w-7 object-contain rounded-md dark:bg-white dark:p-0.5" />
           <span className="font-semibold text-sm">MailerUp</span>
           <button
             aria-label={isDark ? 'Modo claro' : 'Modo oscuro'}

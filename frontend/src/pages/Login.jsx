@@ -31,7 +31,7 @@ export default function Login() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-slate-900 px-4">
       <form onSubmit={handle} className="card p-8 w-full max-w-md space-y-4">
         <div className="text-center">
-          <img src="/logo.png?v=2" alt="MailerUp" className="mx-auto h-16 w-16 object-contain mb-2" />
+          <img src="/logo.png?v=2" alt="MailerUp" className="mx-auto h-16 w-16 object-contain mb-2 rounded-2xl dark:bg-white dark:p-1" />
           <h1 className="text-xl font-semibold">MailerUp</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">Inicia sesión</p>
         </div>
