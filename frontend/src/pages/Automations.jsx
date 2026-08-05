@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Zap, Plus, Pencil, Trash2, ChevronLeft, ChevronUp, ChevronDown, X, Send } from 'lucide-react'
-import api from '../api'
+import api, { fetchAll } from '../api'
 
 function formatDelay(amount, unit) {
   if (!amount || amount === 0) return 'Inmediato'
@@ -328,12 +328,12 @@ export default function Automations() {
     setLoading(true)
     setError(null)
     try {
-      const [autoRes, formsRes] = await Promise.all([
-        api.get('/automations/'),
-        api.get('/forms/'),
+      const [autos, formsAll] = await Promise.all([
+        fetchAll('/automations/'),
+        fetchAll('/forms/'),
       ])
-      setAutomations(autoRes.data.results || autoRes.data)
-      setForms(formsRes.data.results || formsRes.data)
+      setAutomations(autos)
+      setForms(formsAll)
     } catch {
       setError('No se pudieron cargar las automatizaciones.')
     } finally {

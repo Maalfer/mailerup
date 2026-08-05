@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { HardDrive, Paperclip, Trash2, Link2, Check, Loader2, Upload } from 'lucide-react'
-import api from '../api'
+import api, { fetchAll as fetchAllPages } from '../api'
+import Pager from '../components/Pager'
+
+const PAGE_SIZE = 12
 
 function fmt(bytes) {
   if (bytes < 1024) return bytes + ' B'
@@ -49,6 +52,7 @@ export default function Storage() {
   const [uploading, setUploading] = useState(false)
   const [copiedId, setCopiedId] = useState(null)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
   const fileInputRef = useRef()
 
   useEffect(() => { fetchAll() }, [])
@@ -56,13 +60,14 @@ export default function Storage() {
   async function fetchAll() {
     setLoading(true)
     try {
-      const [diskRes, resourcesRes] = await Promise.all([
+      // fetchAllPages recorre TODAS las páginas DRF (antes ?page_size=200 se
+      // ignoraba y solo se veían 25 de hasta 200 recursos).
+      const [diskRes, allResources] = await Promise.all([
         api.get('/campaigns/resources/disk-usage/'),
-        api.get('/campaigns/resources/?page_size=200'),
+        fetchAllPages('/campaigns/resources/'),
       ])
       setDisk(diskRes.data)
-      const data = resourcesRes.data
-      setResources(Array.isArray(data) ? data : (data.results ?? []))
+      setResources(allResources)
     } catch {
       setError('No se pudieron cargar los datos.')
     } finally {
@@ -84,6 +89,7 @@ export default function Storage() {
         uploaded.push(r.data)
       }
       setResources(prev => [...uploaded, ...prev])
+      setPage(1) // los recién subidos van al principio
       // Refresh disk stats
       api.get('/campaigns/resources/disk-usage/').then(r => setDisk(r.data))
     } catch (err) {
@@ -114,6 +120,9 @@ export default function Storage() {
   }
 
   const totalResourcesSize = resources.reduce((s, r) => s + (r.file_size || 0), 0)
+  const totalPages = Math.max(1, Math.ceil(resources.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = resources.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -235,7 +244,7 @@ export default function Storage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-              {resources.map(r => (
+              {pageItems.map(r => (
                 <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 min-w-0">
@@ -285,6 +294,7 @@ export default function Storage() {
             </tbody>
           </table>
         )}
+        <Pager page={safePage} totalPages={totalPages} total={resources.length} unit="archivos" onPage={setPage} className="px-4 pb-3" />
       </div>
     </div>
   )

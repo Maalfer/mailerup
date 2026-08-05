@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, FileText, Send, Trash2, Copy, CalendarClock, Pause, Play } from 'lucide-react'
-import api from '../api'
+import api, { fetchAll } from '../api'
+import Pager from '../components/Pager'
+
+const PAGE_SIZE = 20
 
 const TABS = [
   { key: 'drafts',    label: 'Borradores',         statuses: ['draft'],                       icon: FileText },
@@ -13,29 +16,25 @@ export default function Campaigns() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('drafts')
+  const [page, setPage] = useState(1)
   const nav = useNavigate()
 
   async function load() {
     setLoading(true)
     try {
-      // El endpoint pagina (DRF, 25/página). Recorremos todas las páginas para
-      // que los contadores de las pestañas y la lista reflejen el total real.
-      const all = []
-      let page = 1
-      for (;;) {
-        const r = await api.get('/campaigns/', { params: { page } })
-        const data = r.data
-        all.push(...(data.results || data))
-        if (data && data.next) page += 1
-        else break
-      }
-      setItems(all)
+      // El endpoint pagina (DRF). fetchAll recorre todas las páginas para que los
+      // contadores de las pestañas reflejen el total real; la lista se pagina
+      // luego en cliente por pestaña (PAGE_SIZE) para no mostrar cientos de filas.
+      setItems(await fetchAll('/campaigns/'))
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
 
   const current = TABS.find((t) => t.key === tab)
   const filtered = items.filter((c) => current.statuses.includes(c.status))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar campaña?')) return
@@ -92,7 +91,7 @@ export default function Campaigns() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => { setTab(t.key); setPage(1) }}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
               tab === t.key
                 ? 'border-primary-600 dark:border-primary-400 text-primary-700 dark:text-white'
@@ -119,6 +118,7 @@ export default function Campaigns() {
               : 'No hay correos enviados todavía.'}
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]" aria-label="Lista de campañas">
             <thead className="bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 text-xs uppercase">
@@ -133,7 +133,7 @@ export default function Campaigns() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-              {filtered.map((c) => (
+              {pageItems.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-slate-700">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     <button
@@ -195,6 +195,8 @@ export default function Campaigns() {
             </tbody>
           </table>
           </div>
+          <Pager page={safePage} totalPages={totalPages} total={filtered.length} unit="campañas" onPage={setPage} className="px-4 pb-3" />
+          </>
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClipboardList, Code2, Pencil, Trash2, Plus, X } from 'lucide-react'
-import api from '../api'
+import api, { fetchAll } from '../api'
 
 const DEFAULT_FORM = {
   name: '',
@@ -363,8 +363,7 @@ export default function Forms() {
     setLoading(true)
     setError(null)
     try {
-      const r = await api.get('/forms/')
-      setForms(r.data.results || r.data)
+      setForms(await fetchAll('/forms/'))
     } catch {
       setError('No se pudieron cargar los formularios.')
     } finally {

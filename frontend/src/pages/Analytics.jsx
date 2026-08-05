@@ -5,6 +5,9 @@ import {
   TrendingUp, BarChart3, ArrowLeft, ExternalLink, Zap, ChevronDown, ChevronRight, MailWarning,
 } from 'lucide-react'
 import api from '../api'
+import Pager from '../components/Pager'
+
+const CAMP_PAGE_SIZE = 15
 
 export default function Analytics() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -14,6 +17,7 @@ export default function Analytics() {
   const [data, setData] = useState(null)
   const [autoData, setAutoData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [campPage, setCampPage] = useState(1)
   const tab = queryTab
   const [selected, setSelected] = useState(queryCampaign || null)
   const [detail, setDetail] = useState(null)
@@ -108,7 +112,12 @@ export default function Analytics() {
           <div className="p-12 text-center text-gray-500 dark:text-slate-400">
             Aún no hay campañas enviadas. Envía una para ver métricas aquí.
           </div>
-        ) : (
+        ) : (() => {
+          const totalPages = Math.max(1, Math.ceil(data.campaigns.length / CAMP_PAGE_SIZE))
+          const safePage = Math.min(campPage, totalPages)
+          const pageItems = data.campaigns.slice((safePage - 1) * CAMP_PAGE_SIZE, safePage * CAMP_PAGE_SIZE)
+          return (
+          <>
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[700px]" aria-label="Rendimiento por campaña">
             <thead className="bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-400 text-xs uppercase">
@@ -123,7 +132,7 @@ export default function Analytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-              {data.campaigns.map((c) => (
+              {pageItems.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
                     onClick={() => setSearchParams({ campaign: c.id })}>
                   <td className="px-4 py-3">
@@ -145,7 +154,10 @@ export default function Analytics() {
             </tbody>
           </table>
           </div>
-        )}
+          <Pager page={safePage} totalPages={totalPages} total={data.campaigns.length} unit="campañas" onPage={setCampPage} className="px-5 pb-3" />
+          </>
+          )
+        })()}
       </div>
       </>
       )}

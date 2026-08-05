@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, Pencil, X } from 'lucide-react'
-import api from '../api'
+import api, { fetchAll } from '../api'
 import { useAuth } from '../auth.jsx'
 
 export default function Users() {
@@ -13,8 +13,7 @@ export default function Users() {
   async function load() {
     setLoading(true)
     try {
-      const r = await api.get('/auth/users/')
-      setUsers(r.data.results || r.data)
+      setUsers(await fetchAll('/auth/users/'))
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])

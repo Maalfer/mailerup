@@ -29,4 +29,26 @@ api.interceptors.response.use(
   }
 )
 
+// Carga TODAS las páginas de un endpoint DRF paginado ({count, next, results})
+// y devuelve el array completo, para que la UI no se quede con solo la 1ª página
+// (25 elementos). Si el endpoint ya devuelve un array (no paginado), lo devuelve
+// tal cual. Evita el truncado silencioso a medida que los datos se acumulan.
+export async function fetchAll(url, params = {}) {
+  const first = await api.get(url, { params: { ...params, page: 1 } })
+  const d = first.data
+  if (Array.isArray(d)) return d
+  if (!d || !('results' in d)) return d
+  const items = [...d.results]
+  const total = typeof d.count === 'number' ? d.count : items.length
+  let page = 2
+  while (items.length < total) {
+    const r = await api.get(url, { params: { ...params, page } })
+    const res = r.data?.results
+    if (!res || res.length === 0) break
+    items.push(...res)
+    page += 1
+  }
+  return items
+}
+
 export default api
