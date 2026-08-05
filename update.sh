@@ -9,6 +9,9 @@
 #     cd frontend && npm ci && npm run build
 #     rsync -az --delete frontend/dist/ usuario@vps:/opt/mailerup/frontend/dist/
 #
+# El servidor MCP (mcp/) es tooling de CLIENTE (se ejecuta donde corre Claude,
+# no en la VPS): este script NO lo instala ni lo arranca. Ver mcp/README.md.
+#
 # Uso:  bash update.sh [opciones]
 #   --branch NAME   Rama a desplegar (por defecto: la rama actual, o main)
 #   --no-backup     No hacer copia (pg_dump) de la base de datos antes de actualizar

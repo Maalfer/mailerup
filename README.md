@@ -4,7 +4,7 @@
 
 # MailerUp
 
-**Versión 1.1.5**
+**Versión 1.2.0**
 
 Plataforma autoalojada de newsletter al estilo MailerLite/Mailchimp: gestiona suscriptores, crea correos con un editor enriquecido, envíalos al instante o prográmalos, y mide aperturas y clics. Pensada para correr en una VPS modesta (despliegue **nativo**: PostgreSQL + systemd/uvicorn + nginx — ver [`deploy/README.md`](deploy/README.md)) con SMTP de tu hosting o Postfix local (Raiola, Gmail, Outlook, IONOS…), sin depender de servicios externos de pago.
 
@@ -139,6 +139,16 @@ cat backups/db_AAAAMMDD_HHMMSS.sql | docker compose exec -T db sh -c 'psql -U "$
 - **`.env`** (raíz) — Postgres y red: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL` (apunta al servicio `db`) y `NGINX_HOST_PORT`. Ver `.env.example`.
 
 Ambos ficheros están en `.gitignore` y **no se suben** al repo.
+
+## Administración con IA (MCP)
+
+MailerUp incluye un **servidor MCP** ([`mcp/`](mcp/README.md)) para administrar la
+plataforma desde **Claude** (Claude Code / Claude Desktop) u otros modelos
+compatibles con el Model Context Protocol: crear y programar campañas, gestionar
+suscriptores/grupos, montar automatizaciones y formularios, consultar analíticas
+y **hacer backups**, todo en lenguaje natural. Habla con la API REST usando la
+misma autenticación JWT del panel; no necesita acceso al servidor ni a la BD.
+Instalación y configuración en [`mcp/README.md`](mcp/README.md).
 
 ## Licencia
 

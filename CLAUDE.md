@@ -125,6 +125,15 @@ verifica que estos 8 invariantes siguen en pie.
 - **Editor**: `components/RichTextEditor.jsx` (Tiptap). **DNS guide**: `components/DnsSetupBlock.jsx`.
 - **Tema oscuro**: clase `dark` (Tailwind `darkMode: 'class'`). La paleta `primary` en `tailwind.config.js` define los tonos 50–900; usa `dark:text-white` en estados activos.
 
+### Servidor MCP (`mcp/`)
+
+Herramienta **cliente**, no parte del runtime del servidor: un servidor MCP (Model Context Protocol) en Python — paquete `mailerup_mcp` con venv propio (`mcp/.venv`) — que expone la API como ~68 herramientas para administrar MailerUp desde Claude u otros modelos (crear/programar campañas, gestionar suscriptores, automatizaciones, formularios, analíticas, usuarios, API keys y **backups**).
+
+- **No se despliega con `update.sh`** ni corre en la VPS junto al servicio: se ejecuta en la máquina del cliente MCP. `update.sh` solo sincroniza y reinicia el backend.
+- Autentica igual que el SPA: **login por cookie JWT** (`POST /api/auth/token/` con `email`+`password`, refresco automático ante 401). No usa `Authorization: Bearer` (la API privada solo acepta `CookieJWTAuthentication`).
+- Config por entorno: `MAILERUP_BASE_URL`, `MAILERUP_EMAIL`, `MAILERUP_PASSWORD` (ver `mcp/README.md`). No persiste secretos en el repo.
+- El código del backend es la fuente de verdad: las herramientas del MCP son envoltorios finos sobre los endpoints REST. **Si cambias la API, actualiza `mcp/mailerup_mcp/server.py`** (ver regla 12).
+
 ## Decisiones a respetar
 
 1. **Postgres en producción** (nativo, `127.0.0.1:5432`, vía `DATABASE_URL`). SQLite solo para desarrollo local.
@@ -162,6 +171,7 @@ verifica que estos 8 invariantes siguen en pie.
 9. **Campos nuevos en serializers**: `read_only` o `required=False`.
 10. **Variables de entorno nuevas**: default sensato en `settings/base.py` (`env("VAR", default=...)`) y documentadas en `backend/.env.example`.
 11. **`tailwind.config.js`**: si añades clases con tonos de color, asegúrate de que el tono existe en la paleta.
+12. **Paridad con el MCP**: si añades, quitas o cambias endpoints/parámetros de la API, refleja el cambio en las herramientas del servidor MCP (`mcp/mailerup_mcp/server.py`) y en su `README.md` para que la administración por IA siga cubriendo "todo".
 
 ### Checklist antes de desplegar cambios de modelo
 ```bash

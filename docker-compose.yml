@@ -1,3 +1,8 @@
+# ⚠️ LEGADO / REFERENCIA — NO es el despliegue actual.
+# Desde 2026-06-15 MailerUp se despliega de forma NATIVA (systemd + uvicorn +
+# PostgreSQL + nginx del host); ver `deploy/README.md` y `update.sh`. Este
+# compose se conserva solo como referencia del despliegue Docker anterior.
+#
 # MailerUp — despliegue completo con Docker Compose.
 # Actualizar = git pull && docker compose up -d --build
 #   · web   reconstruye el backend y aplica migraciones al arrancar

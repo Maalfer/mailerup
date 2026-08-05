@@ -1,3 +1,9 @@
+# ⚠️ LEGADO / REFERENCIA — NO es el despliegue actual.
+# Desde 2026-06-15 MailerUp se despliega de forma NATIVA (systemd + uvicorn +
+# PostgreSQL + nginx del host); ver `deploy/README.md`. Este Dockerfile y el
+# resto de ficheros Docker (docker-compose.yml, nginx/Dockerfile, DOCKER.md) se
+# conservan solo como referencia histórica.
+#
 # MailerUp backend — Django + uvicorn (ASGI)
 FROM python:3.13-slim
 
