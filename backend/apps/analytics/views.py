@@ -33,6 +33,32 @@ def _shared_user(request):
     return get_admin_user() or request.user
 
 
+def _rate(numerator, denominator):
+    """Porcentaje HONESTO que refleja la realidad sin engañar por redondeo.
+
+    A gran volumen, redondear a 1 decimal oculta la verdad: con 132 errores en
+    ~695.854 envíos, la tasa de error real (0,019 %) se redondea a 0,0 % y la de
+    éxito (99,981 %) a 100 %, dando un "100 % de éxito / 0 % de error" falso pese
+    a haber errores. Reglas:
+      - 0 casos          → 0.0
+      - todos los casos  → 100.0
+      - en medio         → nunca 0.0 ni 100.0: usa la precisión mínima (hasta 4
+        decimales) que distinga el valor; si es aún menor, fija el mínimo/máximo
+        representable (0.0001 / 99.9999) para no mentir con un 0 o un 100.
+    """
+    if not denominator or numerator <= 0:
+        return 0.0
+    if numerator >= denominator:
+        return 100.0
+    raw = numerator / denominator * 100.0
+    for decimals in (1, 2, 3, 4):
+        r = round(raw, decimals)
+        if 0.0 < r < 100.0:
+            return r
+    # Valor extremo (p.ej. 1 entre millones): no lo colapses a 0 ni a 100.
+    return 99.9999 if raw > 50 else 0.0001
+
+
 # 1×1 transparent GIF
 TRACKING_PIXEL = base64.b64decode(
     "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
@@ -713,13 +739,13 @@ def deliverability(request):
         "total_sends": total,
         "ok": ok,
         "errored": errored,
-        "success_rate": round(ok / total * 100, 1) if total else 0,
-        "error_rate": round(errored / total * 100, 1) if total else 0,
+        "success_rate": _rate(ok, total),
+        "error_rate": _rate(errored, total),
         "top_errors": top_errors,
         "hard_bounces": hard_bounces,
         "soft_bounces": soft_bounces,
         "total_bounces": total_bounces,
-        "bounce_rate": round(total_bounces / ok * 100, 1) if ok else 0,
+        "bounce_rate": _rate(total_bounces, ok),
         "top_bounce_reasons": top_bounce_reasons,
         "sending": sending,
         "sent": sent_campaigns,

@@ -5,6 +5,9 @@ import api from '../api'
 const fmtDateTime = (s) =>
   s ? new Date(s).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '—'
 
+// Números grandes con separador de miles (695854 → "695.854").
+const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('es-ES') : n ?? 0)
+
 function RecipientBadge({ status }) {
   if (status === 'ok')
     return <span className="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Entregado</span>
@@ -288,12 +291,17 @@ export default function Deliverability() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi icon={CheckCircle2} tone="ok" label="Tasa de éxito" value={`${data.success_rate}%`} sub={`${data.ok} entregados`} />
-        <Kpi icon={XCircle} tone="err" label="Tasa de error" value={`${data.error_rate}%`} sub={`${data.errored} con error`} />
-        <Kpi icon={MailWarning} tone="err" label="Tasa de rebote" value={`${data.bounce_rate ?? 0}%`} sub={`${data.total_bounces ?? 0} rebotes (${data.hard_bounces ?? 0} duros)`} />
-        <Kpi icon={Send} label="Total enviados" value={data.total_sends} />
-        <Kpi icon={Activity} label="Ritmo actual" value={`${data.rate_per_hour}/h`} sub="configurable en Ajustes" />
+        <Kpi icon={CheckCircle2} tone="ok" label="Aceptados por el servidor" value={`${data.success_rate}%`} sub={`${fmtNum(data.ok)} aceptados`} />
+        <Kpi icon={XCircle} tone="err" label="Errores de envío" value={`${data.error_rate}%`} sub={`${fmtNum(data.errored)} con error`} />
+        <Kpi icon={MailWarning} tone="err" label="Tasa de rebote" value={`${data.bounce_rate ?? 0}%`} sub={`${fmtNum(data.total_bounces ?? 0)} rebotes (${fmtNum(data.hard_bounces ?? 0)} duros)`} />
+        <Kpi icon={Send} label="Total enviados" value={fmtNum(data.total_sends)} />
+        <Kpi icon={Activity} label="Ritmo actual" value={`${fmtNum(data.rate_per_hour)}/h`} sub="configurable en Ajustes" />
       </div>
+      <p className="text-xs text-gray-400 dark:text-slate-500 -mt-3">
+        <strong>"Aceptados por el servidor"</strong> = correos que tu servidor SMTP admitió para envío sin error;
+        no garantiza que lleguen a la bandeja de entrada (por eso puede rozar el 100 %). La entregabilidad
+        real la reflejan los <strong>rebotes</strong> y las <strong>aperturas</strong> de cada campaña.
+      </p>
 
       <div className="card p-5">
         <h2 className="font-semibold mb-3 flex items-center gap-2">
