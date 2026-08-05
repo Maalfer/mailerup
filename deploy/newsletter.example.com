@@ -43,6 +43,16 @@ server {
         proxy_send_timeout 120s;
     }
 
+    # Assets con hash de contenido (Vite): cache inmutable y, si el fichero no
+    # existe, 404 en vez de caer al index.html. Devolver el index.html (HTML) para
+    # una URL .js/.css hace que un CDN por delante (p.ej. Cloudflare) cachee HTML
+    # para esa URL y rompa la SPA tras un despliegue.
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
     # SPA (routing en cliente)
     location / {
         try_files $uri $uri/ /index.html;
