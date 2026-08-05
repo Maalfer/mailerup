@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Users, Megaphone, BarChart3, Activity, Settings as SettingsIcon, ShieldUser, LogOut, ClipboardList, Zap, Menu, X, Sun, Moon, HardDrive } from 'lucide-react'
+import { Users, Megaphone, BarChart3, Activity, Settings as SettingsIcon, ShieldUser, LogOut, ClipboardList, Zap, Menu, X, Sun, Moon, HardDrive, Bot } from 'lucide-react'
 import { useAuth } from '../auth.jsx'
 import { REPO_URL } from '../repo.js'
 import GithubMark from '../components/GithubMark.jsx'
@@ -17,12 +17,13 @@ const adminItems = [
   { to: '/users',       label: 'Gestión usuarios', icon: ShieldUser },
 ]
 const storageItem  = { to: '/storage',  label: 'Almacenamiento', icon: HardDrive }
+const mcpItem      = { to: '/mcp',      label: 'Asistente IA (MCP)', icon: Bot }
 const settingsItem = { to: '/settings', label: 'Ajustes', icon: SettingsIcon }
 
 export default function Layout() {
   const { user, logout } = useAuth()
   const nav = useNavigate()
-  const items = [...baseItems, ...(user?.is_admin ? adminItems : []), storageItem, settingsItem]
+  const items = [...baseItems, ...(user?.is_admin ? adminItems : []), storageItem, mcpItem, settingsItem]
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDark, setIsDark] = useState(() => {
     if (typeof localStorage !== 'undefined') {

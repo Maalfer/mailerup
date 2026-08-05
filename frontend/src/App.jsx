@@ -13,6 +13,7 @@ import Forms from './pages/Forms.jsx'
 import Automations from './pages/Automations.jsx'
 import AutomationStepEditor from './pages/AutomationStepEditor.jsx'
 import Storage from './pages/Storage.jsx'
+import MCP from './pages/MCP.jsx'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/automations/:automationId/steps/new" element={<AutomationStepEditor />} />
             <Route path="/automations/:automationId/steps/:stepId/edit" element={<AutomationStepEditor />} />
             <Route path="/storage" element={<Storage />} />
+            <Route path="/mcp" element={<MCP />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
