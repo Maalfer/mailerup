@@ -52,7 +52,6 @@ def process_automation_queue():
     Envía los pasos de automatización que ya deben haberse enviado.
     """
     import re
-    from urllib.parse import quote
     from apps.integrations.email_sender import get_sender, smtp_config_from_env
     from apps.analytics.views import make_unsubscribe_token, make_auto_track_token
     from django.conf import settings
@@ -132,18 +131,21 @@ def process_automation_queue():
 
             # Tracking de automatización: reescribe enlaces a /ca/<token>/ e
             # inyecta el pixel de apertura /oa/<token>/ (espeja el de campañas).
-            track_token = make_auto_track_token(step.id, subscriber.id)
+            open_token = make_auto_track_token(step.id, subscriber.id)
 
-            def _rewrite(match, _unsub=unsub_url, _tok=track_token):
+            def _rewrite(match, _unsub=unsub_url, _step_id=step.id, _sub_id=subscriber.id):
                 u = match.group(1)
                 if u.startswith(("mailto:", "tel:", "#")) or u == _unsub:
                     return match.group(0)
-                return f'href="{base}/ca/{_tok}/?u={quote(u, safe="")}"'
+                # El destino va firmado DENTRO del token (no en `?u=`): un
+                # token válido para un enlace no sirve para redirigir a otro.
+                click_token = make_auto_track_token(_step_id, _sub_id, u)
+                return f'href="{base}/ca/{click_token}/"'
 
             html = href_re.sub(_rewrite, html)
             html = inject_before_body_end(
                 html,
-                f'<img src="{base}/oa/{track_token}/" width="1" height="1" '
+                f'<img src="{base}/oa/{open_token}/" width="1" height="1" '
                 f'alt="" style="display:block;border:0;outline:none" />'
             )
 

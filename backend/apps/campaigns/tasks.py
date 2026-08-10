@@ -1,7 +1,6 @@
 import hashlib
 import logging
 import re
-from urllib.parse import quote
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
@@ -208,7 +207,7 @@ def _personalize(html, subscriber, campaign):
 
     base = settings.PUBLIC_BASE_URL.rstrip("/")
     unsub_token = make_unsubscribe_token(subscriber.id, campaign.id)
-    track_token = make_track_token(campaign.id, subscriber.id)
+    open_token = make_track_token(campaign.id, subscriber.id)
     unsub_url = f"{base}/u/{unsub_token}/"
 
     # Pie SIEMPRE generado al enviar desde la config (quita cualquier pie del
@@ -234,11 +233,14 @@ def _personalize(html, subscriber, campaign):
         url = match.group(1)
         if url.startswith(("mailto:", "tel:", "#")) or url == unsub_url:
             return match.group(0)
-        return f'href="{base}/c/{track_token}/?u={quote(url, safe="")}"'
+        # El destino va firmado DENTRO del token (no en `?u=`): un token
+        # válido para un enlace no sirve para redirigir a otro destino.
+        click_token = make_track_token(campaign.id, subscriber.id, url)
+        return f'href="{base}/c/{click_token}/"'
 
     html = HREF_RE.sub(rewrite, html)
 
-    pixel = f'<img src="{base}/o/{track_token}/" width="1" height="1" alt="" style="display:block;border:0;outline:none" />'
+    pixel = f'<img src="{base}/o/{open_token}/" width="1" height="1" alt="" style="display:block;border:0;outline:none" />'
     # En correos de modo HTML (documento completo) el pixel se inserta antes de
     # </body> para no quedar fuera del documento tras </html>.
     return inject_before_body_end(html, pixel)

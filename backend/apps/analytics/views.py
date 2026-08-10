@@ -76,16 +76,26 @@ def parse_unsubscribe_token(token, max_age_days=365):
     return signing.loads(token, salt=UNSUBSCRIBE_SALT, max_age=60 * 60 * 24 * max_age_days)
 
 
-def make_track_token(campaign_id, subscriber_id):
-    return signing.dumps({"c": str(campaign_id), "s": str(subscriber_id)}, salt=TRACK_SALT, compress=True)
+def make_track_token(campaign_id, subscriber_id, url=None):
+    """El destino de clic (`url`) va DENTRO del payload firmado cuando se
+    proporciona. Es la única forma de que un token válido acredite algo sobre
+    el destino: si viajara aparte (p.ej. en `?u=`), cualquiera con un token
+    válido podría sustituirlo conservando la firma (open redirect)."""
+    payload = {"c": str(campaign_id), "s": str(subscriber_id)}
+    if url is not None:
+        payload["u"] = url
+    return signing.dumps(payload, salt=TRACK_SALT, compress=True)
 
 
 def parse_track_token(token, max_age_days=365):
     return signing.loads(token, salt=TRACK_SALT, max_age=60 * 60 * 24 * max_age_days)
 
 
-def make_auto_track_token(step_id, subscriber_id):
-    return signing.dumps({"st": str(step_id), "s": str(subscriber_id)}, salt=AUTOTRACK_SALT, compress=True)
+def make_auto_track_token(step_id, subscriber_id, url=None):
+    payload = {"st": str(step_id), "s": str(subscriber_id)}
+    if url is not None:
+        payload["u"] = url
+    return signing.dumps(payload, salt=AUTOTRACK_SALT, compress=True)
 
 
 def parse_auto_track_token(token, max_age_days=365):
@@ -135,13 +145,15 @@ class TrackClickView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, token):
-        url = request.GET.get("u", "/")
         try:
             data = parse_track_token(token)
         except signing.BadSignature:
-            # Token inválido/caducado: NO honramos el `u` controlado por el
-            # atacante (evita open redirect / phishing). Volvemos al inicio.
+            # Token inválido/caducado: no hay destino de confianza. Volvemos
+            # al inicio.
             return redirect("/")
+        # El destino SOLO sale del token firmado, nunca de la query: `u` no
+        # forma parte de ninguna decisión (ver make_track_token).
+        url = data.get("u", "/")
         try:
             EmailClick.objects.create(
                 campaign_id=data["c"],
@@ -179,13 +191,15 @@ class TrackAutoClickView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, token):
-        url = request.GET.get("u", "/")
         try:
             data = parse_auto_track_token(token)
         except signing.BadSignature:
-            # Token inválido/caducado: NO honramos el `u` controlado por el
-            # atacante (evita open redirect / phishing). Volvemos al inicio.
+            # Token inválido/caducado: no hay destino de confianza. Volvemos
+            # al inicio.
             return redirect("/")
+        # El destino SOLO sale del token firmado, nunca de la query: `u` no
+        # forma parte de ninguna decisión (ver make_auto_track_token).
+        url = data.get("u", "/")
         try:
             AutomationEmailClick.objects.create(
                 step_id=data["st"],
