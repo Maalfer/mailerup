@@ -87,9 +87,11 @@ newsletter, los suscriptores y las campañas — eso es intencionado. Las reglas
    reintroducir un `RegisterView`/ruta `register` con `AllowAny` (fue el CVE-2026-13164).
 2. **Sin autenticación no se accede a ningún dato privado.** El default DRF es `IsAuthenticated`.
    Los únicos endpoints `AllowAny` legítimos son: login/refresh/logout, el alta pública de
-   suscriptores (`/subscribe/…`, solo **recibe** datos) y los públicos firmados por token HMAC
-   (tracking `/o /c /oa /ca`, baja `/u`, confirmación de alta, `/recurso/`). **Cualquier vista
-   nueva que liste o exponga datos debe heredar `IsAuthenticated` (no poner `AllowAny`).**
+   suscriptores (`/subscribe/…`, solo **recibe** datos), los públicos firmados por token HMAC
+   (tracking `/o /c /oa /ca`, baja `/u`, confirmación de alta) y `/recurso/<uuid+ext>/`
+   (`serve_resource`, sin firma — el control es que el nombre es un UUID4 no adivinable, no un
+   token verificado; no subir ahí nada que no deba ser público conociendo su URL). **Cualquier
+   vista nueva que liste o exponga datos debe heredar `IsAuthenticated` (no poner `AllowAny`).**
 3. **Solo el admin ve/edita las API keys y credenciales de proveedor.** `brevo_api_key`,
    `sendgrid_api_key` y `smtp_password` son `write_only` en `UserSerializer` (nunca se devuelven
    en `GET /api/auth/me/`; la UI solo recibe flags `*_set`). Los campos `ADMIN_ONLY_FIELDS`

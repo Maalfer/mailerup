@@ -337,7 +337,8 @@ class ResourceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        stored_name = Resource.make_stored_name(file.name)
+        resource_id = uuid.uuid4()
+        stored_name = Resource.make_stored_name(resource_id, file.name)
         dest = Path(settings.MEDIA_ROOT) / 'resources' / stored_name
         dest.parent.mkdir(parents=True, exist_ok=True)
         with open(dest, 'wb') as f:
@@ -345,6 +346,7 @@ class ResourceViewSet(viewsets.ModelViewSet):
                 f.write(chunk)
 
         resource = Resource.objects.create(
+            id=resource_id,
             user=owner,
             original_name=file.name,
             stored_name=stored_name,

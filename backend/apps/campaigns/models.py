@@ -1,5 +1,4 @@
 import uuid
-import re
 import os
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -26,14 +25,14 @@ class Resource(models.Model):
         return f'/recurso/{self.stored_name}'
 
     @staticmethod
-    def make_stored_name(original_name):
-        base, ext = os.path.splitext(original_name)
-        slug = re.sub(r'[^\w\-]', '_', base).strip('_').lower() or 'archivo'
-        candidate = slug + ext.lower()
-        if not Resource.objects.filter(stored_name=candidate).exists():
-            return candidate
-        short_id = uuid.uuid4().hex[:6]
-        return f'{slug}_{short_id}{ext.lower()}'
+    def make_stored_name(resource_id, original_name):
+        """Nombre en disco y en la URL pública (`/recurso/<stored_name>/`,
+        sin autenticación — ver serve_resource). Se deriva del UUID del
+        recurso, no del nombre original: un slug de "informe_clientes.pdf"
+        es adivinable por cualquiera que conozca o intuya el nombre del
+        documento; un UUID4 no lo es."""
+        ext = os.path.splitext(original_name)[1].lower()
+        return f'{resource_id.hex}{ext}'
 
 
 class Campaign(models.Model):
