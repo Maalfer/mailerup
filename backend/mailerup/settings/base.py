@@ -110,6 +110,17 @@ REST_FRAMEWORK = {
         "api_subscribe": "60/min",    # alta vía API key externa, por key
         "api_subscribe_ip": "120/min",  # tope por IP (pre-auth) del endpoint por-key
     },
+    # Nº de proxies de confianza delante de Django (nginx). Sin esto, DRF usa
+    # tal cual el contenido de X-Forwarded-For como identificador del throttle
+    # (rest_framework.throttling.SimpleRateThrottle.get_ident): como nginx
+    # reenvía esa cabecera con $proxy_add_x_forwarded_for (que AÑADE la IP
+    # real al final en vez de sustituirla), un atacante podía anteponer un
+    # valor propio y cambiarlo en cada petición para generar una clave de
+    # throttle distinta y saltarse el límite de "login" (10/min). Con
+    # NUM_PROXIES=1, DRF ignora el prefijo controlado por el cliente y usa
+    # solo el último tramo de la cabecera, que es el que nginx añadió a
+    # partir de la conexión TCP real (no falsificable).
+    "NUM_PROXIES": env.int("NUM_PROXIES", default=1),
 }
 
 # JWT
