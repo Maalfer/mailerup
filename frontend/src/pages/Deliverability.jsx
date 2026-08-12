@@ -144,6 +144,128 @@ function RecipientsModal({ campaign, onClose }) {
   )
 }
 
+function BouncePctBadge({ pct }) {
+  if (pct == null) {
+    return <span className="badge bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">—</span>
+  }
+  const tone = pct >= 75
+    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+    : pct >= 25
+      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+      : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300'
+  return <span className={`badge ${tone}`}>{pct}%</span>
+}
+
+// Modal de rebotes agrupados por destinatario: para cada uno, qué % de sus
+// envíos totales rebotó, para distinguir un fallo puntual de un buzón muerto.
+function BounceModal({ onClose }) {
+  const [q, setQ] = useState('')
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const t = setTimeout(() => {
+      api
+        .get('/analytics/deliverability/bounces/', { params: { q } })
+        .then((r) => { if (!cancelled) setData(r.data) })
+        .catch(() => { if (!cancelled) setData(null) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, q ? 300 : 0)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [q])
+
+  const results = data?.results || []
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bounces-title"
+        className="card w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
+          <div className="min-w-0">
+            <h2 id="bounces-title" className="text-lg font-semibold truncate flex items-center gap-2">
+              <MailWarning className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
+              Rebotes por destinatario
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+              {data ? `${fmtNum(data.total)} destinatario${data.total === 1 ? '' : 's'} con algún rebote` : 'Cargando…'}
+            </p>
+          </div>
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 flex-shrink-0">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 pt-4 flex-shrink-0">
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
+            <input
+              autoFocus
+              className="input pl-9"
+              type="search"
+              placeholder="Buscar por email…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Buscar destinatario con rebote"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400" role="status">Cargando…</p>
+          ) : results.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              {q ? 'Ningún destinatario coincide con la búsqueda.' : 'No hay rebotes registrados.'}
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-slate-700">
+              {results.map((r) => (
+                <li key={r.email} className="py-2.5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-slate-200">
+                      <Mail className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0" />
+                      <span className="truncate">{r.email}</span>
+                    </div>
+                    {r.name && <div className="text-xs text-gray-500 dark:text-slate-400 ml-5">{r.name}</div>}
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 ml-5">
+                      {r.total_bounces} de {r.total_sends} envíos rebotaron
+                      {' '}({r.hard_count} duro{r.hard_count === 1 ? '' : 's'}, {r.soft_count} blando{r.soft_count === 1 ? '' : 's'})
+                    </div>
+                    {r.last_reason && (
+                      <div className="text-xs text-rose-600 dark:text-rose-400 mt-0.5 ml-5 break-words">{r.last_reason}</div>
+                    )}
+                    {r.last_bounce_at && (
+                      <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 ml-5">
+                        Último rebote: {fmtDateTime(r.last_bounce_at)}
+                      </div>
+                    )}
+                  </div>
+                  <BouncePctBadge pct={r.bounce_pct} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {data?.truncated && (
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-3">
+              Mostrando los primeros {data.limit}. Afina la búsqueda para encontrar destinatarios concretos.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Modal con la vista previa del correo TAL CUAL lo reciben los suscriptores
 // (HTML personalizado + pie de baja), renderizado en un iframe aislado.
 function PreviewModal({ campaign, onClose }) {
@@ -208,21 +330,33 @@ function PreviewModal({ campaign, onClose }) {
   )
 }
 
-function Kpi({ icon: Icon, label, value, sub, tone }) {
+function Kpi({ icon: Icon, label, value, sub, tone, onClick }) {
   const toneCls = tone === 'ok'
     ? 'text-emerald-600 dark:text-emerald-400'
     : tone === 'err'
       ? 'text-rose-600 dark:text-rose-400'
       : 'text-primary-600 dark:text-primary-400'
-  return (
-    <div className="card p-5">
+  const content = (
+    <>
       <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 text-sm">
         {Icon && <Icon className={`h-4 w-4 ${toneCls}`} />} {label}
       </div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {sub && <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{sub}</div>}
-    </div>
+    </>
   )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="card p-5 text-left w-full hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-md transition-shadow"
+      >
+        {content}
+      </button>
+    )
+  }
+  return <div className="card p-5">{content}</div>
 }
 
 export default function Deliverability() {
@@ -232,6 +366,7 @@ export default function Deliverability() {
   const [msg, setMsg] = useState(null)
   const [openCampaign, setOpenCampaign] = useState(null) // campaña cuyos destinatarios se ven
   const [previewCampaign, setPreviewCampaign] = useState(null) // campaña cuyo correo se previsualiza
+  const [showBounces, setShowBounces] = useState(false) // modal de rebotes por destinatario
   const [sentPage, setSentPage] = useState(1) // paginación de "Correos enviados"
 
   const load = useCallback(() => {
@@ -294,7 +429,14 @@ export default function Deliverability() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Kpi icon={CheckCircle2} tone="ok" label="Aceptados por el servidor" value={`${data.success_rate}%`} sub={`${fmtNum(data.ok)} aceptados`} />
         <Kpi icon={XCircle} tone="err" label="Errores de envío" value={`${data.error_rate}%`} sub={`${fmtNum(data.errored)} con error`} />
-        <Kpi icon={MailWarning} tone="err" label="Tasa de rebote" value={`${data.bounce_rate ?? 0}%`} sub={`${fmtNum(data.total_bounces ?? 0)} rebotes (${fmtNum(data.hard_bounces ?? 0)} duros)`} />
+        <Kpi
+          icon={MailWarning}
+          tone="err"
+          label="Tasa de rebote"
+          value={`${data.bounce_rate ?? 0}%`}
+          sub={`${fmtNum(data.total_bounces ?? 0)} rebotes (${fmtNum(data.hard_bounces ?? 0)} duros) · ver detalle`}
+          onClick={() => setShowBounces(true)}
+        />
         <Kpi icon={BadgeCheck} tone="ok" label="Entrega neta" value={`${data.net_delivery_rate ?? 0}%`} sub={`${fmtNum(data.net_delivered ?? 0)} sin error ni rebote duro`} />
         <Kpi icon={Send} label="Total enviados" value={fmtNum(data.total_sends)} />
         <Kpi icon={Activity} label="Ritmo actual" value={`${fmtNum(data.rate_per_hour)}/h`} sub="configurable en Ajustes" />
@@ -515,6 +657,9 @@ export default function Deliverability() {
       )}
       {previewCampaign && (
         <PreviewModal campaign={previewCampaign} onClose={() => setPreviewCampaign(null)} />
+      )}
+      {showBounces && (
+        <BounceModal onClose={() => setShowBounces(false)} />
       )}
     </div>
   )

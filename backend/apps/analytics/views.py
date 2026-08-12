@@ -888,3 +888,76 @@ def deliverability_recipients(request, pk):
         "truncated": len(results) >= LIMIT,
         "limit": LIMIT,
     })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def deliverability_bounces(request):
+    """Rebotes agrupados por suscriptor, para el modal de "Tasa de rebote" en
+    Entregabilidad. Por cada suscriptor con al menos un rebote, calcula qué
+    porcentaje de sus envíos totales rebotó: distingue un fallo puntual (pocos
+    rebotes sobre muchos envíos) de un buzón muerto (rebota siempre). Soporta
+    búsqueda por email (``?q=``)."""
+    from django.db.models import Q, Max, Subquery, OuterRef
+
+    user = _shared_user(request)
+    LIMIT = 1000
+    q = (request.GET.get("q") or "").strip()
+
+    last_reason_sq = (
+        EmailBounce.objects.filter(subscriber_id=OuterRef("subscriber_id"))
+        .order_by("-bounced_at").values("reason")[:1]
+    )
+
+    qs = (
+        EmailBounce.objects.filter(subscriber__list__user=user)
+        .values("subscriber_id", "subscriber__email", "subscriber__first_name", "subscriber__last_name")
+        .annotate(
+            total_bounces=Count("id"),
+            hard_count=Count("id", filter=Q(bounce_type="hard")),
+            soft_count=Count("id", filter=Q(bounce_type="soft")),
+            last_bounce_at=Max("bounced_at"),
+            last_reason=Subquery(last_reason_sq),
+        )
+    )
+    if q:
+        qs = qs.filter(subscriber__email__icontains=q)
+
+    rows = list(qs)
+    total_bounced_subscribers = len(rows)
+
+    # Envíos totales por suscriptor (todas sus campañas), para el % de rebote.
+    # Una sola consulta agregada en vez de N+1 por fila.
+    sub_ids = [r["subscriber_id"] for r in rows]
+    send_counts = dict(
+        CampaignSend.objects.filter(subscriber_id__in=sub_ids, campaign__user=user)
+        .values("subscriber_id").annotate(n=Count("id")).values_list("subscriber_id", "n")
+    )
+
+    results = []
+    for r in rows:
+        total_sends = send_counts.get(r["subscriber_id"], 0)
+        bounce_pct = round(r["total_bounces"] / total_sends * 100, 1) if total_sends else None
+        results.append({
+            "email": r["subscriber__email"],
+            "name": f"{r['subscriber__first_name']} {r['subscriber__last_name']}".strip(),
+            "total_bounces": r["total_bounces"],
+            "hard_count": r["hard_count"],
+            "soft_count": r["soft_count"],
+            "total_sends": total_sends,
+            "bounce_pct": bounce_pct,
+            "last_bounce_at": r["last_bounce_at"],
+            "last_reason": r["last_reason"] or "",
+        })
+
+    # % de rebote descendente (los que rebotan siempre primero); a igualdad,
+    # más rebotes absolutos primero.
+    results.sort(key=lambda r: (r["bounce_pct"] if r["bounce_pct"] is not None else -1, r["total_bounces"]), reverse=True)
+
+    return Response({
+        "q": q,
+        "results": results[:LIMIT],
+        "total": total_bounced_subscribers,
+        "truncated": total_bounced_subscribers > LIMIT,
+        "limit": LIMIT,
+    })
