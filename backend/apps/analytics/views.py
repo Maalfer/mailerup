@@ -760,6 +760,12 @@ def deliverability(request):
         "soft_bounces": soft_bounces,
         "total_bounces": total_bounces,
         "bounce_rate": _rate(total_bounces, ok),
+        # Aceptados menos rebotes DUROS (fallo permanente): los blandos (buzón
+        # lleno, servidor caído) son a menudo temporales y no implican fallo
+        # definitivo, así que no restan aquí. Denominador = total, igual que
+        # success_rate/error_rate, para que sean directamente comparables.
+        "net_delivered": ok - hard_bounces,
+        "net_delivery_rate": _rate(ok - hard_bounces, total),
         "top_bounce_reasons": top_bounce_reasons,
         "sending": sending,
         "sent": sent_campaigns,

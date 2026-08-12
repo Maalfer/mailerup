@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react'
 import api from '../api'
 import { wrapEmailHtml } from '../emailPreview.js'
 
@@ -295,13 +295,16 @@ export default function Deliverability() {
         <Kpi icon={CheckCircle2} tone="ok" label="Aceptados por el servidor" value={`${data.success_rate}%`} sub={`${fmtNum(data.ok)} aceptados`} />
         <Kpi icon={XCircle} tone="err" label="Errores de envío" value={`${data.error_rate}%`} sub={`${fmtNum(data.errored)} con error`} />
         <Kpi icon={MailWarning} tone="err" label="Tasa de rebote" value={`${data.bounce_rate ?? 0}%`} sub={`${fmtNum(data.total_bounces ?? 0)} rebotes (${fmtNum(data.hard_bounces ?? 0)} duros)`} />
+        <Kpi icon={BadgeCheck} tone="ok" label="Entrega neta" value={`${data.net_delivery_rate ?? 0}%`} sub={`${fmtNum(data.net_delivered ?? 0)} sin error ni rebote duro`} />
         <Kpi icon={Send} label="Total enviados" value={fmtNum(data.total_sends)} />
         <Kpi icon={Activity} label="Ritmo actual" value={`${fmtNum(data.rate_per_hour)}/h`} sub="configurable en Ajustes" />
       </div>
       <p className="text-xs text-gray-400 dark:text-slate-500 -mt-3">
         <strong>"Aceptados por el servidor"</strong> = correos que tu servidor SMTP admitió para envío sin error;
-        no garantiza que lleguen a la bandeja de entrada (por eso puede rozar el 100 %). La entregabilidad
-        real la reflejan los <strong>rebotes</strong> y las <strong>aperturas</strong> de cada campaña.
+        no garantiza que lleguen a la bandeja de entrada (por eso puede rozar el 100 %). <strong>"Entrega
+        neta"</strong> resta los rebotes duros (fallo permanente) de esa cifra — los blandos no restan, suelen
+        ser temporales. La entregabilidad real la reflejan sobre todo los <strong>rebotes</strong> y las
+        <strong> aperturas</strong> de cada campaña.
       </p>
 
       <div className="card p-5">
