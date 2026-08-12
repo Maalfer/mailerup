@@ -140,16 +140,6 @@ cat backups/db_AAAAMMDD_HHMMSS.sql | docker compose exec -T db sh -c 'psql -U "$
 
 Ambos ficheros están en `.gitignore` y **no se suben** al repo.
 
-## Administración con IA (MCP)
-
-MailerUp incluye un **servidor MCP** ([`mcp/`](mcp/README.md)) para administrar la
-plataforma desde **Claude** (Claude Code / Claude Desktop) u otros modelos
-compatibles con el Model Context Protocol: crear y programar campañas, gestionar
-suscriptores/grupos, montar automatizaciones y formularios, consultar analíticas
-y **hacer backups**, todo en lenguaje natural. Habla con la API REST usando la
-misma autenticación JWT del panel; no necesita acceso al servidor ni a la BD.
-Instalación y configuración en [`mcp/README.md`](mcp/README.md).
-
 ## Licencia
 
 MailerUp está publicado bajo la licencia **MIT**. Copyright (c) 2026 Maalfer. Consulta el archivo [LICENSE](LICENSE) para el texto completo.

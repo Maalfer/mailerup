@@ -75,11 +75,6 @@ Los 8 invariantes están en `CLAUDE.md`. En resumen:
 - Dependencia Python nueva → `requirements.txt`. Paquete npm nuevo → `package.json` + `package-lock.json` sincronizado (si no, `npm ci` rompe el build local).
 - No romper endpoints/serializers existentes (campos nuevos `read_only`/`required=False`).
 - Variables de entorno nuevas → default en `settings/base.py` + documentar en `backend/.env.example`.
-- **Si añades o cambias endpoints de la API, refléjalo en las herramientas del MCP** (`mcp/mailerup_mcp/server.py`) para mantener la paridad.
-
-## Servidor MCP (`mcp/`)
-
-Herramienta **cliente** (no forma parte del runtime del servidor ni lo despliega `update.sh`): un servidor MCP en Python (paquete `mailerup_mcp`, venv propio) que expone la API como herramientas para administrar MailerUp desde Claude u otros modelos. Habla con la API REST usando el **mismo login por cookie JWT** (`POST /api/auth/token/` con `email`+`password`, refresco automático). Config por entorno: `MAILERUP_BASE_URL`, `MAILERUP_EMAIL`, `MAILERUP_PASSWORD`. Ver `mcp/README.md`.
 
 ## Antes de hacer commit
 
@@ -92,6 +87,5 @@ Herramienta **cliente** (no forma parte del runtime del servidor ni lo despliega
 
 - `deploy/README.md` — **despliegue NATIVO actual** (systemd + nginx del host + Postgres nativo).
 - `CLAUDE.md` — contexto operativo extenso para asistentes IA (incluye los 8 invariantes de seguridad).
-- `mcp/README.md` — servidor MCP para administrar la plataforma desde Claude.
 - `README.md` — público (capturas, funcionalidades).
 - `DOCKER.md` / `docker-compose.yml` / `*/Dockerfile` — **legado** (despliegue anterior con Docker; no vigente).

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../api'
+import { wrapEmailHtml } from '../emailPreview.js'
 
 const fmtDateTime = (s) =>
   s ? new Date(s).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : '—'
@@ -196,7 +197,7 @@ function PreviewModal({ campaign, onClose }) {
           ) : (
             <iframe
               title="Vista previa del correo"
-              srcDoc={data.html}
+              srcDoc={wrapEmailHtml(data.html)}
               sandbox=""
               className="w-full h-full min-h-[55vh] sm:min-h-[60vh] border-0 bg-white"
             />

@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Save, Send, Copy, FileText, CalendarClock, FlaskConical, Eye, X, UserX, Upload, Type, Code2 } from 'lucide-react'
 import api from '../api'
 import RichTextEditor from '../components/RichTextEditor.jsx'
+import { wrapEmailHtml } from '../emailPreview.js'
 
 const BLANK_CONTENT = '<p>Escribe el contenido de tu correo aquí…</p>'
 
@@ -116,40 +117,11 @@ function fillPreviewPlaceholders(html) {
 }
 
 // Construye un documento HTML aislado que reproduce cómo llega el correo al
-// destinatario: cuerpo real sobre fondo claro, ancho ~600px centrado y responsive.
+// destinatario. La maqueta (ancho ~600px centrado, fondo claro) vive en
+// emailPreview.js y la comparte con la vista previa de Entregabilidad, así
+// ambas son fieles entre sí.
 function buildPreviewSrcDoc(rawHtml) {
-  const filled = fillPreviewPlaceholders(rawHtml).trim()
-  // Si el usuario ha escrito un documento HTML completo (modo HTML), lo
-  // mostramos tal cual para que la vista previa sea fiel a sus propios estilos,
-  // en vez de anidarlo dentro de la maqueta por defecto.
-  if (/<\s*(html|body|!doctype)\b/i.test(filled)) {
-    return filled
-  }
-  const body = filled || '<p style="color:#9ca3af;margin:0">Sin contenido todavía.</p>'
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  html,body{margin:0;padding:0;}
-  body{background:#f1f3f5;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;}
-  .mu-page{padding:24px 12px;}
-  .mu-email{max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.08);overflow:hidden;}
-  .mu-inner{padding:24px;}
-  .mu-inner img{max-width:100%;height:auto;}
-  .mu-inner a{color:#4f46e5;}
-  .mu-inner hr{border:none;border-top:1px solid #e5e7eb;margin:16px 0;}
-</style>
-</head>
-<body>
-  <div class="mu-page">
-    <div class="mu-email">
-      <div class="mu-inner">${body}</div>
-    </div>
-  </div>
-</body>
-</html>`
+  return wrapEmailHtml(fillPreviewPlaceholders(rawHtml))
 }
 
 function defaultScheduleValue() {
