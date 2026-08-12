@@ -3,7 +3,8 @@ from .views import (
     overview, campaign_analytics,
     automations_overview, automation_analytics,
     subscriptions_timeseries,
-    deliverability, deliverability_recipients, deliverability_bounces, retry_failed_sends,
+    deliverability, deliverability_recipients, deliverability_bounces,
+    deliverability_bounce_delete, retry_failed_sends,
 )
 
 urlpatterns = [
@@ -15,5 +16,6 @@ urlpatterns = [
     path("deliverability/", deliverability),
     path("deliverability/campaign/<uuid:pk>/recipients/", deliverability_recipients),
     path("deliverability/bounces/", deliverability_bounces),
+    path("deliverability/bounces/<uuid:subscriber_id>/", deliverability_bounce_delete),
     path("retry-failed/", retry_failed_sends),
 ]

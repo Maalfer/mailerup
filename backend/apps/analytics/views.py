@@ -939,6 +939,7 @@ def deliverability_bounces(request):
         total_sends = send_counts.get(r["subscriber_id"], 0)
         bounce_pct = round(r["total_bounces"] / total_sends * 100, 1) if total_sends else None
         results.append({
+            "subscriber_id": str(r["subscriber_id"]),
             "email": r["subscriber__email"],
             "name": f"{r['subscriber__first_name']} {r['subscriber__last_name']}".strip(),
             "total_bounces": r["total_bounces"],
@@ -961,3 +962,17 @@ def deliverability_bounces(request):
         "truncated": total_bounced_subscribers > LIMIT,
         "limit": LIMIT,
     })
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def deliverability_bounce_delete(request, subscriber_id):
+    """Borra el historial de rebotes de un suscriptor (no el suscriptor ni sus
+    envíos): para limpiar entradas erróneas/duplicadas del modal de rebotes."""
+    user = _shared_user(request)
+    deleted, _ = EmailBounce.objects.filter(
+        subscriber_id=subscriber_id, subscriber__list__user=user
+    ).delete()
+    if not deleted:
+        return Response({"detail": "No había rebotes registrados para ese suscriptor."}, status=404)
+    return Response({"deleted": deleted})

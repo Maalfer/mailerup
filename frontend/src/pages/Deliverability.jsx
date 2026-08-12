@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react'
+import { Activity, CheckCircle2, XCircle, Send, RefreshCw, Clock, Pause, Play, Users, Search, X, Mail, MailWarning, Eye, ChevronLeft, ChevronRight, BadgeCheck, Trash2 } from 'lucide-react'
 import api from '../api'
 import { wrapEmailHtml } from '../emailPreview.js'
 
@@ -153,7 +153,11 @@ function BouncePctBadge({ pct }) {
     : pct >= 25
       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
       : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300'
-  return <span className={`badge ${tone}`}>{pct}%</span>
+  // Un rebote puede quedar sin CampaignSend asociado (se borró la campaña, o
+  // el NDR llegó duplicado desde el propio relé) y dar >100%; se muestra
+  // como "100%+" en vez de un número sin sentido tipo "400%".
+  const label = pct > 100 ? '100%+' : `${pct}%`
+  return <span className={`badge ${tone}`} title={pct > 100 ? `${pct}% (más rebotes que envíos registrados)` : undefined}>{label}</span>
 }
 
 // Modal de rebotes agrupados por destinatario: para cada uno, qué % de sus
@@ -162,6 +166,7 @@ function BounceModal({ onClose }) {
   const [q, setQ] = useState('')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -177,6 +182,23 @@ function BounceModal({ onClose }) {
   }, [q])
 
   const results = data?.results || []
+
+  async function handleDelete(r) {
+    if (!confirm(`¿Borrar el historial de rebotes de ${r.email}? No afecta a su suscripción ni a los envíos ya hechos.`)) return
+    setDeletingId(r.subscriber_id)
+    try {
+      await api.delete(`/analytics/deliverability/bounces/${r.subscriber_id}/`)
+      setData((d) => d && {
+        ...d,
+        results: d.results.filter((row) => row.subscriber_id !== r.subscriber_id),
+        total: Math.max(0, d.total - 1),
+      })
+    } catch {
+      alert('No se pudo borrar el historial de rebotes.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div
@@ -230,7 +252,7 @@ function BounceModal({ onClose }) {
           ) : (
             <ul className="divide-y divide-gray-100 dark:divide-slate-700">
               {results.map((r) => (
-                <li key={r.email} className="py-2.5 flex items-start justify-between gap-3">
+                <li key={r.subscriber_id} className="py-2.5 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-slate-200">
                       <Mail className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0" />
@@ -250,7 +272,19 @@ function BounceModal({ onClose }) {
                       </div>
                     )}
                   </div>
-                  <BouncePctBadge pct={r.bounce_pct} />
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <BouncePctBadge pct={r.bounce_pct} />
+                    <button
+                      type="button"
+                      aria-label={`Borrar historial de rebotes de ${r.email}`}
+                      title="Borrar historial de rebotes"
+                      disabled={deletingId === r.subscriber_id}
+                      onClick={() => handleDelete(r)}
+                      className="text-gray-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

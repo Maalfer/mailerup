@@ -92,20 +92,28 @@ def process_bounce_mailbox():
 
             bounce_type = "hard" if status.startswith("5") else "soft"
             reason = (diag or status or "")[:500]
-            for sub in subs:
-                last_send = (
-                    CampaignSend.objects.filter(subscriber=sub)
-                    .order_by("-sent_at").first()
-                )
-                EmailBounce.objects.create(
-                    campaign=last_send.campaign if last_send else None,
-                    subscriber=sub,
-                    bounce_type=bounce_type,
-                    reason=reason,
-                )
-                if bounce_type == "hard" and sub.status == "active":
-                    sub.status = "bounced"
-                    sub.save(update_fields=["status"])
+
+            # Un NDR = un envío real que rebotó, aunque la misma dirección
+            # exista como varios Subscriber duplicados (p.ej. en distintas
+            # listas). Se registra UN solo EmailBounce, atribuido al envío más
+            # reciente entre todos los duplicados — antes se creaba uno por
+            # duplicado y el mismo rebote se contaba N veces.
+            last_send = (
+                CampaignSend.objects.filter(subscriber__in=subs)
+                .select_related("subscriber", "campaign")
+                .order_by("-sent_at").first()
+            )
+            EmailBounce.objects.create(
+                campaign=last_send.campaign if last_send else None,
+                subscriber=last_send.subscriber if last_send else subs[0],
+                bounce_type=bounce_type,
+                reason=reason,
+            )
+            if bounce_type == "hard":
+                for sub in subs:
+                    if sub.status == "active":
+                        sub.status = "bounced"
+                        sub.save(update_fields=["status"])
             os.remove(path)
             processed += 1
         except Exception:
