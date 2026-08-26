@@ -11,7 +11,7 @@ Esta carpeta contiene los ficheros de referencia de ese despliegue.
 ## Arquitectura
 
 ```
-Cloudflare (TLS) ──► nginx del HOST (443) ──┬─ /                → /opt/mailerup/frontend/dist (SPA)
+Cloudflare (TLS) ──► nginx del HOST (443) ──┬─ /                → /var/www/mailerup/dist (SPA)
                                             └─ /api /admin /static
                                                /u /o /c /oa /ca
                                                /subscribe /verify-subscription
@@ -22,7 +22,7 @@ Cloudflare (TLS) ──► nginx del HOST (443) ──┬─ /                �
                                                           PostgreSQL 16 nativo (127.0.0.1:5432)
 ```
 
-- **Python**: venv en `/opt/mailerup/backend/.venv` (Python 3.12, Django 6).
+- **Python**: venv en `/opt/mailerup/backend/venv` (Python 3.12, Django 6).
 - **DB**: PostgreSQL 16 nativo. Conexión por `DATABASE_URL` en `backend/.env`.
 - **SMTP**: Postfix del host (`SMTP_HOST=127.0.0.1`).
 - **Estáticos**: whitenoise (vía uvicorn). **Media**: `/opt/mailerup/backend/media/`.
@@ -38,11 +38,11 @@ sudo -u postgres createdb -O mailerup mailerup
 
 # 2. App
 cd /opt/mailerup/backend
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
 #   backend/.env: DATABASE_URL=postgres://mailerup:...@127.0.0.1:5432/mailerup, SMTP_HOST=127.0.0.1, ...
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py migrate
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py collectstatic --noinput
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py migrate
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py collectstatic --noinput
 
 # 3. Servicio
 sudo install -m 644 deploy/mailerup.service /etc/systemd/system/mailerup.service
@@ -51,7 +51,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mailerup
 # 4. Frontend (COMPILAR EN LOCAL, nunca en la VPS)
 #   en tu máquina:
 cd frontend && npm ci && npm run build
-rsync -az --delete frontend/dist/ usuario@vps:/opt/mailerup/frontend/dist/
+rsync -az --delete frontend/dist/ usuario@vps:/var/www/mailerup/dist/
 
 # 5. nginx
 sudo install -m 644 deploy/newsletter.example.com /etc/nginx/sites-available/newsletter.example.com

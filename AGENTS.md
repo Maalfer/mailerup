@@ -15,16 +15,16 @@ App web autoalojada de newsletter: suscriptores, editor WYSIWYG, envío SMTP/API
 
 ## Despliegue y actualización (clave)
 
-Producción en `/opt/mailerup` (VPS Ubuntu, 1 GB RAM + swap). App como servicio systemd `mailerup.service` (`uvicorn mailerup.asgi:application`, **1 worker**, `127.0.0.1:8100`), PostgreSQL 16 nativo, nginx del host sirve el SPA (`frontend/dist`) y hace proxy a uvicorn.
+Producción en `/opt/mailerup` (VPS Ubuntu, 1 GB RAM + swap). App como servicio systemd `mailerup.service` (`uvicorn mailerup.asgi:application`, **1 worker**, `127.0.0.1:8100`), PostgreSQL 16 nativo, nginx del host sirve el SPA (`/var/www/mailerup/dist`, NO `frontend/dist`) y hace proxy a uvicorn.
 
 ```bash
 # Backend (en la VPS): sincroniza repo, pip, migrate, collectstatic, reinicia el servicio.
 bash /opt/mailerup/update.sh          # hace pg_dump de backup antes de actualizar
-DJANGO_SETTINGS_MODULE=mailerup.settings.production /opt/mailerup/backend/.venv/bin/python manage.py createsuperuser
+DJANGO_SETTINGS_MODULE=mailerup.settings.production /opt/mailerup/backend/venv/bin/python manage.py createsuperuser
 
 # Frontend: COMPILA EN LOCAL y sube el dist (NUNCA compiles Vite en la VPS: 1 GB RAM → OOM).
 cd frontend && npm ci && npm run build
-rsync -az --delete frontend/dist/ usuario@vps:/opt/mailerup/frontend/dist/
+rsync -az --delete frontend/dist/ usuario@vps:/var/www/mailerup/dist/
 ```
 
 - El código se despliega **desde GitHub**: `update.sh` hace `git pull --ff-only origin <rama>`. **Todo cambio debe commitearse y pushearse a `origin/main`** o no llegará a la VPS.
@@ -78,7 +78,7 @@ Los 8 invariantes están en `CLAUDE.md`. En resumen:
 
 ## Antes de hacer commit
 
-- `python manage.py check` → 0 issues (en la VPS: `DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py check`).
+- `python manage.py check` → 0 issues (en la VPS: `DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py check`).
 - Si tocas modelos: `python manage.py makemigrations` (verifica `default=`/`blank=True`).
 - Verificar que no se cuela `.env`, `db.sqlite3` ni `node_modules` (`git status`).
 - **Commit + push a `origin/main`** (fuente de verdad del despliegue).

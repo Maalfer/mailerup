@@ -7,7 +7,7 @@
 # IMPORTANTE: el FRONTEND no se compila aquí. Con 1 GB de RAM el build de Vite
 # agota la memoria y cuelga la VPS. Compílalo en tu máquina y sube el dist:
 #     cd frontend && npm ci && npm run build
-#     rsync -az --delete frontend/dist/ usuario@vps:/opt/mailerup/frontend/dist/
+#     rsync -az --delete frontend/dist/ usuario@vps:/var/www/mailerup/dist/
 #
 # El servidor MCP (mcp/) es tooling de CLIENTE (se ejecuta donde corre Claude,
 # no en la VPS): este script NO lo instala ni lo arranca. Ver mcp/README.md.
@@ -23,7 +23,7 @@ set -euo pipefail
 
 APP_DIR="/opt/mailerup"
 BACKEND_DIR="$APP_DIR/backend"
-VENV="$BACKEND_DIR/.venv"
+VENV="$BACKEND_DIR/venv"
 SERVICE="mailerup"
 SETTINGS="mailerup.settings.production"
 DB_NAME="mailerup"

@@ -14,10 +14,10 @@ VPS Ubuntu 24.04, **1 GB RAM / 1 CPU** (con swapfile de 2 GB). Código en `/opt/
 
 - **PostgreSQL 16 nativo** en `127.0.0.1:5432` (BD `mailerup`, rol `mailerup`). La app conecta por `DATABASE_URL` (en `backend/.env`).
 - **App Django** como servicio **systemd `mailerup.service`**:
-  `/opt/mailerup/backend/.venv/bin/uvicorn mailerup.asgi:application --host 127.0.0.1 --port 8100 --workers 1`
-  (**1 worker** a propósito: el scheduler in-process debe correr en una única instancia). venv en `/opt/mailerup/backend/.venv`, `DJANGO_SETTINGS_MODULE=mailerup.settings.production`.
+  `/opt/mailerup/backend/venv/bin/uvicorn mailerup.asgi:application --host 127.0.0.1 --port 8100 --workers 1`
+  (**1 worker** a propósito: el scheduler in-process debe correr en una única instancia). venv en `/opt/mailerup/backend/venv`, `DJANGO_SETTINGS_MODULE=mailerup.settings.production`.
 - **nginx del HOST** (no contenedor) sirve el SPA y hace de proxy. Vhost `/etc/nginx/sites-available/newsletter.example.com`:
-  `root /opt/mailerup/frontend/dist`, `client_max_body_size 25M`,
+  `root /var/www/mailerup/dist`, `client_max_body_size 25M`,
   `location ~ ^/(api|admin|static|u|o|c|oa|ca|subscribe|verify-subscription|recurso)(/|$)` → `proxy_pass http://127.0.0.1:8100` (con `X-Forwarded-Proto https`),
   resto → `try_files $uri $uri/ /index.html`. TLS por **Cloudflare Origin cert**. (El mismo nginx sirve otros vhosts del correo — no tocarlos.)
 - **Static**: whitenoise (servido por uvicorn vía `/static/`). **Media** (adjuntos de campañas): `/opt/mailerup/backend/media/resources/`.
@@ -31,9 +31,9 @@ El repo **no tiene CI ni push automático** a la VPS. Para desplegar un cambio:
 ```bash
 # en la VPS, /opt/mailerup (tras sincronizar el código: git pull o rsync)
 cd /opt/mailerup/backend
-.venv/bin/pip install -r requirements.txt            # solo si cambió requirements.txt
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py migrate --noinput
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py collectstatic --noinput
+venv/bin/pip install -r requirements.txt            # solo si cambió requirements.txt
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py migrate --noinput
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py collectstatic --noinput
 sudo systemctl restart mailerup
 ```
 O usa el script `bash /opt/mailerup/update.sh` (versión nativa: sincroniza git, pip, migrate, collectstatic, reinicia el servicio — **NO** toca el frontend).
@@ -43,7 +43,7 @@ O usa el script `bash /opt/mailerup/update.sh` (versión nativa: sincroniza git,
 ```bash
 # en tu máquina
 cd frontend && npm ci && npm run build
-rsync -az --delete frontend/dist/  usuario@vps:/opt/mailerup/frontend/dist/
+rsync -az --delete frontend/dist/  usuario@vps:/var/www/mailerup/dist/
 ```
 > ⚠️ **NUNCA compiles el frontend (Vite/npm) en la VPS.** Con 1 GB de RAM el build agota la memoria y cuelga la máquina (OOM). Por eso el build es local y solo se sube el `dist`.
 
@@ -52,8 +52,8 @@ rsync -az --delete frontend/dist/  usuario@vps:/opt/mailerup/frontend/dist/
 systemctl status mailerup                 # estado del servicio
 journalctl -u mailerup -f                 # logs de la app
 sudo systemctl restart mailerup           # reiniciar tras cambios de código
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py shell
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py createsuperuser
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py shell
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py createsuperuser
 # Backup de BD:
 pg_dump -Fc -h 127.0.0.1 -U mailerup mailerup > /opt/mailerup/backups/mailerup_$(date +%F).dump
 
@@ -155,7 +155,7 @@ verifica que estos 8 invariantes siguen en pie.
 4. **Nunca `squashmigrations`** sin avisar.
 
 ### Dependencias
-5. **Dependencia Python nueva** → `requirements.txt` (y `.venv/bin/pip install -r requirements.txt` al desplegar).
+5. **Dependencia Python nueva** → `requirements.txt` (y `venv/bin/pip install -r requirements.txt` al desplegar).
 6. **Paquete npm nuevo** → `package.json` + `package-lock.json` (entra en el build local del frontend). Mantén el lockfile sincronizado.
 7. **No eliminar paquetes** sin verificar que nada los importa.
 
@@ -176,7 +176,7 @@ python manage.py check                                 # 0 issues
 ## Test mínimo después de cambios grandes
 ```bash
 cd /opt/mailerup/backend
-DJANGO_SETTINGS_MODULE=mailerup.settings.production .venv/bin/python manage.py check   # 0 issues
+DJANGO_SETTINGS_MODULE=mailerup.settings.production venv/bin/python manage.py check   # 0 issues
 sudo systemctl restart mailerup
 curl -s -o /dev/null -w "home %{http_code}\n" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8100/   # 404 = ok (la raíz la sirve nginx)
 curl -s -o /dev/null -w "api  %{http_code}\n" -H 'X-Forwarded-Proto: https' http://127.0.0.1:8100/api/analytics/overview/   # 401 sin auth = OK
