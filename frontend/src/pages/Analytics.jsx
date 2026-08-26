@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment } from 'react'
+import { useEffect, useRef, useState, Fragment } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Users, Mail, MailOpen, MousePointerClick, UserMinus, UserPlus,
@@ -544,26 +544,58 @@ function SubsChart({ buckets }) {
   const yOf = (v) => H - (v / max) * H
   const fmt = (d) => (d || '').slice(5).replace('-', '/') || d
 
+  const containerRef = useRef(null)
+  // { index, x, y, width } en coordenadas del contenedor (no del SVG), para que
+  // el tooltip HTML se posicione bien aunque el gráfico esté scrolleado
+  // horizontalmente (overflow-x-auto). El <title> nativo de SVG que había antes
+  // depende del navegador/SO, tarda en aparecer o directamente no sale con barras
+  // finas de pocos px: por eso aquí se dibuja el tooltip a mano.
+  const [hover, setHover] = useState(null)
+
+  const updateHover = (index, evt) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setHover({ index, x: evt.clientX - rect.left, y: evt.clientY - rect.top, width: rect.width })
+  }
+  const clearHover = (index) => setHover((h) => (h?.index === index ? null : h))
+
+  const hoveredBucket = hover ? data[hover.index] : null
+  const tooltipLeft = hover ? Math.min(Math.max(hover.x, 64), Math.max(hover.width - 64, 64)) : 0
+
   return (
-    <div className="overflow-x-auto">
+    <div ref={containerRef} className="relative overflow-x-auto">
       <svg width={W} height={H + 46} role="img" aria-label="Gráfico de altas y bajas por periodo">
         <line x1="0" y1={H} x2={W} y2={H} className="stroke-gray-200 dark:stroke-slate-700" strokeWidth="1" />
         {data.map((b, i) => {
           const x = 16 + i * step
+          const isHover = hover?.index === i
           return (
             <g key={b.date}>
-              <rect x={x} y={yOf(b.altas)} width={barW} height={H - yOf(b.altas)} rx="1.5" className="fill-emerald-500">
-                <title>{b.date}: {b.altas} altas</title>
-              </rect>
-              <rect x={x + barW + gap} y={yOf(b.bajas)} width={barW} height={H - yOf(b.bajas)} rx="1.5" className="fill-rose-500">
-                <title>{b.date}: {b.bajas} bajas</title>
-              </rect>
+              <rect x={x} y={yOf(b.altas)} width={barW} height={H - yOf(b.altas)} rx="1.5"
+                    className={isHover ? 'fill-emerald-400' : 'fill-emerald-500'} pointerEvents="none" />
+              <rect x={x + barW + gap} y={yOf(b.bajas)} width={barW} height={H - yOf(b.bajas)} rx="1.5"
+                    className={isHover ? 'fill-rose-400' : 'fill-rose-500'} pointerEvents="none" />
+              {/* Zona de hover ancha e invisible: cubre todo el alto del grupo,
+                  no solo la barra, para que sea fácil apuntar incluso cuando
+                  altas o bajas valen 0 (barra de 0px de alto). */}
+              <rect
+                x={x - gap} y={0} width={groupW + gap * 2} height={H}
+                fill="transparent"
+                onMouseEnter={(e) => updateHover(i, e)}
+                onMouseMove={(e) => updateHover(i, e)}
+                onMouseLeave={() => clearHover(i)}
+                style={{ cursor: 'crosshair' }}
+              />
+              {isHover && (
+                <line x1={x + groupW / 2} y1="0" x2={x + groupW / 2} y2={H}
+                      className="stroke-gray-300 dark:stroke-slate-600" strokeWidth="1" strokeDasharray="3 3" pointerEvents="none" />
+              )}
               <text
                 x={x + groupW / 2}
                 y={H + 16}
                 textAnchor="end"
                 transform={`rotate(-45 ${x + groupW / 2} ${H + 16})`}
-                className="fill-gray-400 dark:fill-slate-500"
+                className={isHover ? 'fill-gray-600 dark:fill-slate-300' : 'fill-gray-400 dark:fill-slate-500'}
                 style={{ fontSize: 9 }}
               >
                 {fmt(b.date)}
@@ -572,6 +604,20 @@ function SubsChart({ buckets }) {
           )
         })}
       </svg>
+      {hoveredBucket && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-600 dark:bg-slate-800"
+          style={{ left: tooltipLeft, top: Math.max(hover.y - 64, 0) }}
+        >
+          <div className="mb-1 font-semibold text-gray-700 dark:text-slate-200">{hoveredBucket.date}</div>
+          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            <span className="h-2 w-2 rounded-sm bg-emerald-500" /> {hoveredBucket.altas} {hoveredBucket.altas === 1 ? 'alta' : 'altas'}
+          </div>
+          <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+            <span className="h-2 w-2 rounded-sm bg-rose-500" /> {hoveredBucket.bajas} {hoveredBucket.bajas === 1 ? 'baja' : 'bajas'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
