@@ -115,6 +115,17 @@ newsletter, los suscriptores y las campañas — eso es intencionado. Las reglas
    usan `ScopedRateThrottle`. El resto de la API autenticada no se limita (hay operaciones masivas
    legítimas). Para limitar un endpoint nuevo, dale `throttle_scope` y añade su rate en
    `DEFAULT_THROTTLE_RATES`.
+9. **Las API keys (`ApiKey`/`ApiKeyAuthentication`, `apps/accounts`) equivalen a la cuenta admin.**
+   Solo un admin puede crear/revocar claves (`ApiKeyListCreateView`/`ApiKeyDetailView`,
+   `IsAdminUser`). Una clave activa autentica como `request.user` en **cualquier vista que la
+   liste en `authentication_classes`** — hoy el alta pública de suscriptores y
+   `CampaignViewSet` completo (CRUD + `send`/`schedule`/`unschedule`/`pause`/`resume`/
+   `send_test`/`exclude`/`duplicate`/`preview`). Es intencionado: da a un sistema externo o
+   asistente IA (p.ej. Claude) **control total** sobre las campañas. Al añadir
+   `ApiKeyAuthentication` a una vista nueva, ten en cuenta que la clave tendrá ese mismo
+   alcance — no lo hagas en vistas que expongan/modifiquen credenciales de proveedor,
+   gestión de usuarios o cualquier dato fuera de "suscriptores + campañas" sin decidirlo
+   explícitamente (y documentarlo aquí).
 
 Antes de mergear cualquier cambio que toque vistas, permisos, serializers o el modelo `User`,
 verifica que estos 8 invariantes siguen en pie.

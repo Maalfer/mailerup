@@ -103,8 +103,13 @@ def hash_api_key(raw):
 
 
 class ApiKey(models.Model):
-    """Credential for the external subscriber-creation endpoint. The raw key is
-    shown ONCE at creation and never stored; only its SHA-256 hash is persisted."""
+    """Credential for programmatic access via `Authorization: Bearer <key>`.
+    Grants the same access as its owner (the shared admin) over the endpoints
+    that opt into ApiKeyAuthentication — currently subscriber creation and
+    full campaign management (create/update/delete/send/schedule/pause/…).
+    Intended for external systems and AI assistants (e.g. Claude via MCP/API)
+    that need full control over newsletter campaigns. The raw key is shown
+    ONCE at creation and never stored; only its SHA-256 hash is persisted."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(

@@ -76,7 +76,11 @@ Vista de la secuencia completa con todos los pasos ordenados, el delay de cada u
 - Endpoints públicos firmados para baja (`/u/`), tracking de campañas (`/o/`, `/c/`) y de automatizaciones (`/oa/`, `/ca/`)
 - 20 proveedores de email con presets DNS (SPF/DKIM/DMARC) específicos por proveedor
 - Email de prueba con diagnóstico claro (auth fail, host inválido, SPF, etc.)
-- **API keys** (admin-only) para dar de alta suscriptores desde sistemas externos: `POST /api/public/subscribers/` con `Authorization: Bearer <key>`. La clave se muestra una sola vez al crearla y solo se guarda su hash; el alta es directa (sin doble opt-in) y admite `list` para elegir el grupo
+- **API keys** (admin-only, `Authorization: Bearer <key>`) para control programático completo, pensadas también para dar acceso a un asistente IA como Claude:
+  - Alta de suscriptores desde sistemas externos: `POST /api/public/subscribers/` (alta directa, sin doble opt-in; admite `list` para elegir el grupo)
+  - **Gestión completa de campañas**: `/api/campaigns/` (crear, editar, listar, borrar) y sus acciones — `send`, `schedule`, `unschedule`, `pause`, `resume`, `send_test`, `exclude`, `duplicate`, `preview`
+
+  La clave se muestra una sola vez al crearla y solo se guarda su hash; equivale en permisos a la cuenta admin, así que trátala como una contraseña
 - Backup de DB descargable (admin-only)
 
 ## Despliegue con Docker

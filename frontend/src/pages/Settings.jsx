@@ -502,6 +502,7 @@ function ApiKeysSection() {
   const [err, setErr] = useState(null)
 
   const endpoint = `${window.location.origin}/api/public/subscribers/`
+  const campaignsEndpoint = `${window.location.origin}/api/campaigns/`
 
   async function load() {
     try {
@@ -552,17 +553,33 @@ function ApiKeysSection() {
         <h2 className="font-semibold">Claves API</h2>
       </div>
       <p className="text-sm text-gray-600 dark:text-slate-300">
-        Genera claves para que un sistema externo (tu web, un CRM, Zapier…) dé de alta suscriptores
-        mediante una petición <code>POST</code>. La clave se muestra <strong>una sola vez</strong>;
-        guárdala en un sitio seguro. Si la pierdes, revócala y crea otra.
+        Genera claves para que un sistema externo — tu web, un CRM, Zapier, o un asistente
+        IA como Claude — actúe con tu cuenta: dar de alta suscriptores y <strong>gestionar
+        campañas por completo</strong> (crear, editar, programar, enviar, pausar, reanudar
+        y borrar correos). La clave se muestra <strong>una sola vez</strong>; guárdala en un
+        sitio seguro. Si la pierdes o se compromete, revócala y crea otra — tiene tanto
+        control como tu propia cuenta de administrador.
       </p>
 
-      <div className="rounded-md border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-3 text-xs font-mono overflow-x-auto">
-        <div className="text-gray-500 dark:text-slate-400 mb-1 font-sans">Uso:</div>
-        curl -X POST {endpoint} \<br />
-        &nbsp;&nbsp;-H "Authorization: Bearer &lt;TU_CLAVE&gt;" \<br />
-        &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
-        &nbsp;&nbsp;-d '{'{'}"email":"nuevo@ejemplo.com","first_name":"Ana"{'}'}'
+      <div className="rounded-md border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-3 text-xs font-mono overflow-x-auto space-y-3">
+        <div>
+          <div className="text-gray-500 dark:text-slate-400 mb-1 font-sans">Alta de suscriptor:</div>
+          curl -X POST {endpoint} \<br />
+          &nbsp;&nbsp;-H "Authorization: Bearer &lt;TU_CLAVE&gt;" \<br />
+          &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+          &nbsp;&nbsp;-d '{'{'}"email":"nuevo@ejemplo.com","first_name":"Ana"{'}'}'
+        </div>
+        <div>
+          <div className="text-gray-500 dark:text-slate-400 mb-1 font-sans">Crear y programar una campaña:</div>
+          curl -X POST {campaignsEndpoint} \<br />
+          &nbsp;&nbsp;-H "Authorization: Bearer &lt;TU_CLAVE&gt;" \<br />
+          &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+          &nbsp;&nbsp;-d '{'{'}"name":"Newsletter agosto","subject":"Novedades","html_content":"&lt;p&gt;Hola&lt;/p&gt;","send_to_all":true{'}'}'<br /><br />
+          curl -X POST {campaignsEndpoint}&lt;id&gt;/schedule/ \<br />
+          &nbsp;&nbsp;-H "Authorization: Bearer &lt;TU_CLAVE&gt;" -H "Content-Type: application/json" \<br />
+          &nbsp;&nbsp;-d '{'{'}"scheduled_at":"2026-09-01T09:00:00Z"{'}'}'<br /><br />
+          curl -X DELETE {campaignsEndpoint}&lt;id&gt;/ -H "Authorization: Bearer &lt;TU_CLAVE&gt;"
+        </div>
       </div>
 
       {/* Alta de clave */}

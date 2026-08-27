@@ -15,10 +15,13 @@ class CookieJWTAuthentication(JWTAuthentication):
 
 
 class ApiKeyAuthentication(authentication.BaseAuthentication):
-    """Authenticates the external subscriber endpoint via `Authorization: Bearer <key>`.
+    """Authenticates opted-in views via `Authorization: Bearer <key>` (subscriber
+    creation, campaign management — any view that lists this in
+    `authentication_classes`).
 
     The raw key is SHA-256 hashed and matched against an active ApiKey. The key's
-    owner becomes request.user (mapping to the shared admin owner). Returns None if
+    owner becomes request.user (mapping to the shared admin owner), so it has the
+    same access as that user over whichever views accept it. Returns None if
     no Bearer header is present so the request falls through to a normal 401."""
 
     keyword = "Bearer"

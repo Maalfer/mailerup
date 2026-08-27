@@ -285,7 +285,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
 
-# --- Admin-only: API keys for the external subscriber endpoint ----------
+# --- Admin-only: API keys (subscriber creation + full campaign management) ---
 
 class ApiKeyListCreateView(generics.ListCreateAPIView):
     permission_classes = (IsAdminUser,)

@@ -6,6 +6,7 @@ from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from apps.accounts.authentication import CookieJWTAuthentication, ApiKeyAuthentication
 from .models import Campaign
 from .serializers import CampaignSerializer, CampaignListSerializer
 from .tasks import _personalize
@@ -24,6 +25,11 @@ def _ensure_list(campaign, user):
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
+    # Además de la cookie JWT (panel), acepta una API key (Bearer): permite que un
+    # sistema externo o un asistente IA (Claude vía MCP/API) cree, programe, pause,
+    # reanude o borre campañas con la clave generada en Ajustes → Claves API.
+    authentication_classes = [CookieJWTAuthentication, ApiKeyAuthentication]
+
     def get_queryset(self):
         from apps.accounts.serializers import get_admin_user
         return Campaign.objects.filter(user=get_admin_user() or self.request.user)
