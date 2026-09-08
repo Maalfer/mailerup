@@ -473,15 +473,23 @@ class CookieTokenRefreshView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+
         refresh_token = request.COOKIES.get('refresh')
         if not refresh_token:
             return Response({'detail': 'No hay sesión activa.'}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            token = RefreshToken(refresh_token)
-            access = token.access_token
-            new_refresh = token if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS') else None
+            # Delega en el serializer oficial de SimpleJWT: es el que de verdad
+            # aplica ROTATE_REFRESH_TOKENS/BLACKLIST_AFTER_ROTATION (blacklist()
+            # + set_jti()/set_exp()/set_iat()). La versión anterior reenviaba el
+            # MISMO RefreshToken (mismo jti, misma expiración) sin invalidar
+            # nada: un refresh token robado una vez servía indefinidamente
+            # durante los 7 días de vida, sin forma de detectar el reuso.
+            serializer = TokenRefreshSerializer(data={'refresh': refresh_token})
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
             response = Response({'detail': 'ok'})
-            _set_token_cookies(response, access, new_refresh)
+            _set_token_cookies(response, data['access'], data.get('refresh'))
             return response
         except Exception:
             response = Response({'detail': 'Sesión caducada.'}, status=status.HTTP_401_UNAUTHORIZED)

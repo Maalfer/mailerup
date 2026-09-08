@@ -304,9 +304,14 @@ def subscriber_detail(request, pk):
     if request.method == "DELETE":
         sub.delete()
         return Response(status=204)
-    for f in ("email", "first_name", "last_name", "status"):
+    for f in ("email", "first_name", "last_name"):
         if f in request.data:
             setattr(sub, f, request.data[f])
+    if "status" in request.data:
+        new_status = request.data["status"]
+        if new_status not in dict(Subscriber.STATUS):
+            return Response({"detail": "status no válido"}, status=400)
+        sub.status = new_status
     if "lifecycle_stage" in request.data:
         stage = request.data["lifecycle_stage"]
         if stage not in dict(Subscriber.LIFECYCLE_STAGES):
@@ -447,7 +452,7 @@ def _csv_response(subscribers, filename):
     for s in subscribers:
         writer.writerow([
             _csv_safe(s.email), _csv_safe(s.first_name), _csv_safe(s.last_name),
-            s.status, s.subscribed_at,
+            _csv_safe(s.status), s.subscribed_at,
         ])
     response = HttpResponse(output.getvalue(), content_type="text/csv")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'

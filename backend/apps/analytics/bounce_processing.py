@@ -63,6 +63,7 @@ def process_bounce_mailbox():
     han registrado como rebote. No-op si no hay ruta configurada."""
     from apps.subscribers.models import Subscriber
     from apps.campaigns.models import CampaignSend
+    from apps.automations.models import AutomationSend
     from .models import EmailBounce
 
     maildir = getattr(settings, "BOUNCE_MAILDIR_PATH", "") or ""
@@ -103,9 +104,29 @@ def process_bounce_mailbox():
                 .select_related("subscriber", "campaign")
                 .order_by("-sent_at").first()
             )
+            last_automation_send = None
+            if last_send is None:
+                last_automation_send = (
+                    AutomationSend.objects.filter(enrollment__subscriber__in=subs)
+                    .select_related("enrollment__subscriber")
+                    .order_by("-sent_at").first()
+                )
+            if last_send is None and last_automation_send is None:
+                # `Final-Recipient` es contenido del correo entrante (un NDR no
+                # se autentica ni se correlaciona con nada por sí solo): sin un
+                # envío real conocido a esta dirección, no hay nada que
+                # confirme que el rebote es genuino. Sin este corte, cualquiera
+                # podría "silenciar" a un suscriptor mandando un NDR falso al
+                # buzón de rebotes con su email en Final-Recipient.
+                os.remove(path)
+                continue
+            target_subscriber = (
+                last_send.subscriber if last_send
+                else last_automation_send.enrollment.subscriber
+            )
             EmailBounce.objects.create(
                 campaign=last_send.campaign if last_send else None,
-                subscriber=last_send.subscriber if last_send else subs[0],
+                subscriber=target_subscriber,
                 bounce_type=bounce_type,
                 reason=reason,
             )

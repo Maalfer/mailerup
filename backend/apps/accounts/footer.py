@@ -13,7 +13,15 @@ _URL_RE = re.compile(r"(?:https?://)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/[^\s<]*)?", 
 
 
 def _escape(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # Las comillas también se escapan: _linkify interpola URLs detectadas
+    # directamente en href="…", y su regex no excluye comillas del "path" —
+    # sin esto, un footer_forward_text/footer_subscribe_text con una comilla
+    # doble podría cerrar el atributo href e inyectar atributos HTML propios
+    # (p. ej. onmouseover=) en el pie de TODOS los correos salientes.
+    return (
+        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace('"', "&quot;").replace("'", "&#39;")
+    )
 
 
 def _linkify(text):
