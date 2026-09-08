@@ -99,6 +99,20 @@ def _deliver(campaign, sender, subscriber):
     return True
 
 
+def _apply_segment_filters(qs, campaign):
+    """Filtro opcional por lifecycle_stage/awareness_level, encima del
+    grupo/send_to_all ya elegido. Cada eje vacío/None = sin restricción."""
+    if campaign.segment_lifecycle_stages:
+        qs = qs.filter(lifecycle_stage__in=campaign.segment_lifecycle_stages)
+    if campaign.segment_exclude_customers:
+        qs = qs.exclude(lifecycle_stage="cliente")
+    if campaign.segment_min_awareness is not None:
+        qs = qs.filter(awareness_level__gte=campaign.segment_min_awareness)
+    if campaign.segment_max_awareness is not None:
+        qs = qs.filter(awareness_level__lte=campaign.segment_max_awareness)
+    return qs
+
+
 def _pending_subscribers(campaign):
     """Active subscribers of the campaign scope (a single group, or ALL groups
     when ``send_to_all``) that have not been sent to yet and are not excluded."""
@@ -120,6 +134,7 @@ def _pending_subscribers(campaign):
         qs = Subscriber.objects.filter(list__user=campaign.user, status="active")
     else:
         qs = Subscriber.objects.filter(list=campaign.subscriber_list, status="active")
+    qs = _apply_segment_filters(qs, campaign)
     qs = qs.exclude(id__in=already).exclude(id__in=in_automation)
     if excluded:
         # Subscriber emails are normalised to lowercase on entry (add/import),

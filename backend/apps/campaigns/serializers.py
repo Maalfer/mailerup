@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.subscribers.models import SubscriberList
+from apps.subscribers.models import SubscriberList, Subscriber
 from .models import Campaign, Resource
 
 
@@ -32,8 +32,28 @@ class CampaignSerializer(serializers.ModelSerializer):
             'created_at', 'stats',
             'ab_enabled', 'subject_b', 'ab_split_percent',
             'excluded_emails',
+            'segment_lifecycle_stages', 'segment_exclude_customers',
+            'segment_min_awareness', 'segment_max_awareness',
         )
         read_only_fields = ('id', 'status', 'sent_at', 'created_at', 'stats')
+
+    def validate_segment_lifecycle_stages(self, value):
+        valid = dict(Subscriber.LIFECYCLE_STAGES)
+        if not isinstance(value, list) or any(v not in valid for v in value):
+            raise serializers.ValidationError(
+                f"Valores válidos: {', '.join(valid)}"
+            )
+        return value
+
+    def validate_segment_min_awareness(self, value):
+        if value is not None and not (1 <= value <= 5):
+            raise serializers.ValidationError("Debe estar entre 1 y 5.")
+        return value
+
+    def validate_segment_max_awareness(self, value):
+        if value is not None and not (1 <= value <= 5):
+            raise serializers.ValidationError("Debe estar entre 1 y 5.")
+        return value
 
     def get_fields(self):
         # Restringe subscriber_list a las listas del propietario (admin compartido

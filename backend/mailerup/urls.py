@@ -8,6 +8,7 @@ from apps.analytics.views import (
 from apps.forms.views import SubscribeView, VerifySubscriptionView
 from apps.campaigns.views import serve_resource
 from apps.subscribers.views import PublicAddSubscriberView
+from apps.integrations.webhooks import PurchaseWebhookView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,6 +30,8 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.urls')),
     # External API-key endpoint: crea suscriptores con Authorization: Bearer <key>
     path('api/public/subscribers/', PublicAddSubscriberView.as_view(), name='public-add-subscriber'),
+    # Webhook genérico de compra (secreto compartido, ver PURCHASE_WEBHOOK_SECRET)
+    path('api/webhooks/purchase/', PurchaseWebhookView.as_view(), name='purchase-webhook'),
     # Apps
     path('api/subscribers/', include('apps.subscribers.urls')),
     path('api/campaigns/', include('apps.campaigns.urls')),

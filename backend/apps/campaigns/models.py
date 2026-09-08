@@ -66,6 +66,14 @@ class Campaign(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     excluded_emails = models.TextField(blank=True, default='')
+    # Segmentación por ciclo de vida / nivel de consciencia (opcional, se aplica
+    # ADEMÁS de subscriber_list/send_to_all, igual que excluded_emails). Vacío/None
+    # en cada campo = sin restricción en ese eje. Ver apps/campaigns/tasks.py
+    # `_apply_segment_filters`.
+    segment_lifecycle_stages = models.JSONField(default=list, blank=True)
+    segment_exclude_customers = models.BooleanField(default=False)
+    segment_min_awareness = models.PositiveSmallIntegerField(null=True, blank=True)
+    segment_max_awareness = models.PositiveSmallIntegerField(null=True, blank=True)
     # A/B testing
     ab_enabled = models.BooleanField(default=False)
     subject_b = models.CharField(max_length=250, blank=True)

@@ -28,6 +28,13 @@ class Subscriber(models.Model):
         ("bounced", "Rebotado"),
         ("complained", "Queja spam"),
     ]
+    LIFECYCLE_STAGES = [
+        ("lead", "Lead"),
+        ("nurturing", "Nutriendo"),
+        ("mql", "Cualificado (MQL)"),
+        ("cliente", "Cliente"),
+        ("baja", "Baja de interés"),
+    ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     list = models.ForeignKey(SubscriberList, on_delete=models.CASCADE, related_name="subscribers")
     email = models.EmailField()
@@ -36,6 +43,11 @@ class Subscriber(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default="active")
     subscribed_at = models.DateTimeField(auto_now_add=True)
     unsubscribed_at = models.DateTimeField(null=True, blank=True)
+    # Ciclo de vida / nivel de consciencia (Eugene Schwartz) para poder excluir
+    # compradores de campañas de venta y nutrir según en qué punto está cada uno.
+    lifecycle_stage = models.CharField(max_length=20, choices=LIFECYCLE_STAGES, default="lead")
+    awareness_level = models.PositiveSmallIntegerField(default=1)
+    last_purchase_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("list", "email")
@@ -43,3 +55,14 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return self.email
+
+
+class ScoringCursor(models.Model):
+    """Fila única: marca hasta qué momento se procesaron aperturas/clics para
+    el scoring automático de awareness_level (apps/subscribers/scoring.py)."""
+    last_run_at = models.DateTimeField(null=True, blank=True)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

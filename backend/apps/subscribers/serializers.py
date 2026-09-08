@@ -17,5 +17,6 @@ class SubscriberSerializer(serializers.ModelSerializer):
         fields = (
             "id", "email", "first_name", "last_name", "status",
             "subscribed_at", "unsubscribed_at",
+            "lifecycle_stage", "awareness_level", "last_purchase_at",
         )
         read_only_fields = ("id", "subscribed_at")

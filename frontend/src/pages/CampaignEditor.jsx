@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Save, Send, Copy, FileText, CalendarClock, FlaskConical, Eye, X, UserX, Upload, Type, Code2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Save, Send, Copy, FileText, CalendarClock, FlaskConical, Eye, X, UserX, Upload, Type, Code2, Filter } from 'lucide-react'
 import api from '../api'
 import RichTextEditor from '../components/RichTextEditor.jsx'
 import { wrapEmailHtml } from '../emailPreview.js'
 
 const BLANK_CONTENT = '<p>Escribe el contenido de tu correo aquí…</p>'
+
+// Debe coincidir con Subscriber.LIFECYCLE_STAGES (backend/apps/subscribers/models.py).
+const LIFECYCLE_STAGES = [
+  ['lead', 'Lead'],
+  ['nurturing', 'Nutriendo'],
+  ['mql', 'Cualificado (MQL)'],
+  ['cliente', 'Cliente'],
+  ['baja', 'Baja de interés'],
+]
 
 // Plantilla de arranque para el modo HTML: email responsive basado en tablas
 // (el formato robusto que entienden todos los clientes de correo), con tarjeta
@@ -155,7 +164,13 @@ export default function CampaignEditor() {
     ab_split_percent: 50,
     subscriber_list: null,
     send_to_all: true,
+    segment_lifecycle_stages: [],
+    segment_exclude_customers: false,
+    segment_min_awareness: null,
+    segment_max_awareness: null,
   })
+  const [segmentOpen, setSegmentOpen] = useState(false)
+  const [segmentCount, setSegmentCount] = useState(null)
   const [campaignId, setCampaignId] = useState(id || null)
   const [me, setMe] = useState(null)
   const [scheduleMode, setScheduleMode] = useState('now') // 'now' | 'later'
@@ -196,7 +211,17 @@ export default function CampaignEditor() {
           ab_split_percent: r.data.ab_split_percent ?? 50,
           subscriber_list: r.data.subscriber_list ?? null,
           send_to_all: r.data.send_to_all ?? false,
+          segment_lifecycle_stages: r.data.segment_lifecycle_stages || [],
+          segment_exclude_customers: r.data.segment_exclude_customers || false,
+          segment_min_awareness: r.data.segment_min_awareness ?? null,
+          segment_max_awareness: r.data.segment_max_awareness ?? null,
         })
+        setSegmentOpen(Boolean(
+          (r.data.segment_lifecycle_stages || []).length ||
+          r.data.segment_exclude_customers ||
+          r.data.segment_min_awareness != null ||
+          r.data.segment_max_awareness != null
+        ))
         if (r.data.status === 'scheduled' && r.data.scheduled_at) {
           const d = new Date(r.data.scheduled_at)
           const pad = (n) => String(n).padStart(2, '0')
@@ -244,6 +269,10 @@ export default function CampaignEditor() {
         ab_split_percent: 50,
         subscriber_list: form.subscriber_list ?? null,
         send_to_all: form.send_to_all ?? true,
+        segment_lifecycle_stages: [],
+        segment_exclude_customers: false,
+        segment_min_awareness: null,
+        segment_max_awareness: null,
       })
       setShowRecent(false)
     } catch {
@@ -283,7 +312,13 @@ export default function CampaignEditor() {
     if (!form.name || !form.subject) { alert('Nombre y asunto son obligatorios'); return }
     setSaving(true)
     try {
-      await persist()
+      const saved = await persist()
+      try {
+        const r = await api.get(`/campaigns/${saved.id}/recipient-count/`)
+        setSegmentCount(r.data.count)
+      } catch {
+        setSegmentCount(null)
+      }
       setStep(2)
     } catch (err) {
       alert(err.response?.data ? JSON.stringify(err.response.data) : 'Error guardando')
@@ -486,6 +521,108 @@ export default function CampaignEditor() {
                 Elige un grupo concreto o envía a todos los suscriptores de todos los grupos.
               </p>
             </div>
+          </div>
+
+          {/* Segmentación por ciclo de vida / consciencia */}
+          <div className="card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-primary-600" />
+                <h2 className="font-semibold">Segmentar por fase de consciencia</h2>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={segmentOpen}
+                aria-label="Activar segmentación por fase de consciencia"
+                onClick={() => {
+                  const next = !segmentOpen
+                  setSegmentOpen(next)
+                  if (!next) {
+                    setForm({
+                      ...form,
+                      segment_lifecycle_stages: [],
+                      segment_exclude_customers: false,
+                      segment_min_awareness: null,
+                      segment_max_awareness: null,
+                    })
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  segmentOpen ? 'bg-primary-600' : 'bg-gray-200 dark:bg-slate-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    segmentOpen ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            {segmentOpen && (
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Fases a incluir</label>
+                  <div className="flex flex-wrap gap-3">
+                    {LIFECYCLE_STAGES.map(([value, label]) => {
+                      const checked = form.segment_lifecycle_stages.includes(value)
+                      return (
+                        <label key={value} className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked
+                                ? form.segment_lifecycle_stages.filter((v) => v !== value)
+                                : [...form.segment_lifecycle_stages, value]
+                              setForm({ ...form, segment_lifecycle_stages: next })
+                            }}
+                          />
+                          {label}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Ninguna marcada = cualquier fase.</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={form.segment_exclude_customers}
+                    onChange={(e) => setForm({ ...form, segment_exclude_customers: e.target.checked })}
+                  />
+                  Excluir compradores (clientes)
+                </label>
+                <div className="grid grid-cols-2 gap-3 max-w-xs">
+                  <div>
+                    <label className="label">Nivel mínimo</label>
+                    <input
+                      type="number" min={1} max={5} className="input"
+                      value={form.segment_min_awareness ?? ''}
+                      onChange={(e) => setForm({
+                        ...form,
+                        segment_min_awareness: e.target.value === '' ? null : Number(e.target.value),
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Nivel máximo</label>
+                    <input
+                      type="number" min={1} max={5} className="input"
+                      value={form.segment_max_awareness ?? ''}
+                      onChange={(e) => setForm({
+                        ...form,
+                        segment_max_awareness: e.target.value === '' ? null : Number(e.target.value),
+                      })}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  Este filtro se aplica encima del grupo/destinatarios elegido arriba. El nivel de
+                  consciencia (1-5) y la fase de cada suscriptor se editan desde Suscriptores.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* A/B Testing */}
@@ -754,7 +891,7 @@ export default function CampaignEditor() {
                     : (groups.find((g) => g.id === form.subscriber_list)?.name || 'Grupo seleccionado')}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-slate-300">
-                  Se enviará a {sendableCount} suscriptores activos.
+                  Se enviará a {segmentCount ?? sendableCount} suscriptores activos.
                   {subsCount > sendableCount && (
                     <span className="block text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                       ({subsCount - sendableCount} excluidos por estar en una automatización)
@@ -763,6 +900,20 @@ export default function CampaignEditor() {
                 </div>
               </div>
             </label>
+            {segmentOpen && (
+              <div className="flex items-center gap-3 rounded-lg bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 p-3">
+                <Filter className="h-5 w-5 text-primary-600 dark:text-primary-400 flex-shrink-0" />
+                <span className="text-sm text-primary-800 dark:text-primary-300 flex-1">
+                  Segmento activo:{' '}
+                  {form.segment_lifecycle_stages.length > 0
+                    ? form.segment_lifecycle_stages.map((v) => LIFECYCLE_STAGES.find((s) => s[0] === v)?.[1] || v).join(', ')
+                    : 'cualquier fase'}
+                  {form.segment_exclude_customers && ' · sin compradores'}
+                  {form.segment_min_awareness != null && ` · nivel ≥ ${form.segment_min_awareness}`}
+                  {form.segment_max_awareness != null && ` · nivel ≤ ${form.segment_max_awareness}`}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="card p-6 space-y-3">
@@ -896,7 +1047,7 @@ export default function CampaignEditor() {
               <Row k="Nombre" v={form.name} />
               <Row k="Asunto" v={form.subject} />
               <Row k="Remitente" v={`${form.from_name || '(sin nombre)'} <${form.from_email || '(sin email)'}>`} />
-              <Row k="Destinatarios" v={`${sendableCount} suscriptores`} />
+              <Row k="Destinatarios" v={`${segmentCount ?? sendableCount} suscriptores`} />
               {exclusionCount > 0 && <Row k="Excluidos" v={`${exclusionCount} emails no recibirán el correo`} />}
               <Row k="Envío" v={
                 scheduleMode === 'now'
