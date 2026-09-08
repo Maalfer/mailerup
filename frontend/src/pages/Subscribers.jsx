@@ -9,6 +9,107 @@ const STATUS_LABELS = {
   complained: 'Queja spam',
 }
 
+// Debe coincidir con Subscriber.LIFECYCLE_STAGES (backend/apps/subscribers/models.py).
+const LIFECYCLE_STAGES = [
+  ['lead', 'Lead'],
+  ['nurturing', 'Nutriendo'],
+  ['mql', 'Cualificado (MQL)'],
+  ['cliente', 'Cliente'],
+  ['baja', 'Baja de interés'],
+]
+const LIFECYCLE_LABELS = Object.fromEntries(LIFECYCLE_STAGES)
+
+function EditSubscriberModal({ subscriber, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    email: subscriber.email,
+    first_name: subscriber.first_name || '',
+    last_name: subscriber.last_name || '',
+    status: subscriber.status,
+    lifecycle_stage: subscriber.lifecycle_stage || 'lead',
+    awareness_level: subscriber.awareness_level ?? 1,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      await api.post(`/subscribers/${subscriber.id}/`, form)
+      onSaved()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Error guardando')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-subscriber-title"
+        onSubmit={handleSubmit}
+        className="card w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
+          <h2 id="edit-subscriber-title" className="text-lg font-semibold">Editar suscriptor</h2>
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div>
+            <label htmlFor="edit-email" className="label">Email *</label>
+            <input id="edit-email" className="input" type="email" required
+              value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-first-name" className="label">Nombre</label>
+              <input id="edit-first-name" className="input"
+                value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="edit-last-name" className="label">Apellido</label>
+              <input id="edit-last-name" className="input"
+                value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="edit-status" className="label">Estado</label>
+            <select id="edit-status" className="input" value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="edit-lifecycle" className="label">Fase de ciclo de vida</label>
+            <select id="edit-lifecycle" className="input" value={form.lifecycle_stage}
+              onChange={(e) => setForm({ ...form, lifecycle_stage: e.target.value })}>
+              {LIFECYCLE_STAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="edit-awareness" className="label">Nivel de consciencia (1-5)</label>
+            <input id="edit-awareness" type="number" min={1} max={5} className="input"
+              value={form.awareness_level}
+              onChange={(e) => setForm({ ...form, awareness_level: Number(e.target.value) })} />
+          </div>
+          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100 dark:border-slate-700 flex-shrink-0">
+          <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 function GroupsModal({ groups, onClose, onChanged }) {
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -333,7 +434,11 @@ export default function Subscribers() {
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ email: '', first_name: '', last_name: '' })
+  const [form, setForm] = useState({
+    email: '', first_name: '', last_name: '',
+    lifecycle_stage: 'lead', awareness_level: 1,
+  })
+  const [editingSub, setEditingSub] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [tab, setTab] = useState('list')
   const fileRef = useRef(null)
@@ -404,7 +509,7 @@ export default function Subscribers() {
     setAdding(true)
     try {
       await api.post('/subscribers/add/', { ...form, list: selectedGroup || undefined })
-      setForm({ email: '', first_name: '', last_name: '' })
+      setForm({ email: '', first_name: '', last_name: '', lifecycle_stage: 'lead', awareness_level: 1 })
       setShowAdd(false)
       await load()
       await loadGroups()
@@ -586,6 +691,8 @@ export default function Subscribers() {
                   <th scope="col" className="px-4 py-3 text-left">Email</th>
                   <th scope="col" className="px-4 py-3 text-left">Nombre</th>
                   <th scope="col" className="px-4 py-3 text-left">Estado</th>
+                  <th scope="col" className="px-4 py-3 text-left">Fase</th>
+                  <th scope="col" className="px-4 py-3 text-left">Nivel</th>
                   <th scope="col" className="px-4 py-3 text-left">Alta</th>
                   <th scope="col" className="px-4 py-3" />
                 </tr>
@@ -606,8 +713,17 @@ export default function Subscribers() {
                         {STATUS_LABELS[s.status] || s.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{LIFECYCLE_LABELS[s.lifecycle_stage] || s.lifecycle_stage || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{s.awareness_level ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{new Date(s.subscribed_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        aria-label={`Editar suscriptor ${s.email}`}
+                        onClick={() => setEditingSub(s)}
+                        className="text-gray-400 hover:text-primary-600 mr-2"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       <button
                         aria-label={`Eliminar suscriptor ${s.email}`}
                         onClick={() => handleDelete(s.id)}
@@ -714,6 +830,21 @@ export default function Subscribers() {
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="sub-lifecycle" className="label">Fase de ciclo de vida</label>
+                  <select id="sub-lifecycle" className="input" value={form.lifecycle_stage}
+                    onChange={(e) => setForm({ ...form, lifecycle_stage: e.target.value })}>
+                    {LIFECYCLE_STAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="sub-awareness" className="label">Nivel de consciencia (1-5)</label>
+                  <input id="sub-awareness" type="number" min={1} max={5} className="input"
+                    value={form.awareness_level}
+                    onChange={(e) => setForm({ ...form, awareness_level: Number(e.target.value) })} />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100 dark:border-slate-700 flex-shrink-0">
               <button type="button" className="btn-secondary" onClick={() => setShowAdd(false)}>Cancelar</button>
@@ -721,6 +852,14 @@ export default function Subscribers() {
             </div>
           </form>
         </div>
+      )}
+
+      {editingSub && (
+        <EditSubscriberModal
+          subscriber={editingSub}
+          onClose={() => setEditingSub(null)}
+          onSaved={async () => { setEditingSub(null); await load() }}
+        />
       )}
     </div>
   )

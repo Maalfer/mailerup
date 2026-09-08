@@ -109,6 +109,7 @@ REST_FRAMEWORK = {
         "subscribe": "30/min",        # frena abuso del formulario público de alta
         "api_subscribe": "60/min",    # alta vía API key externa, por key
         "api_subscribe_ip": "120/min",  # tope por IP (pre-auth) del endpoint por-key
+        "purchase_webhook": "120/min",  # webhook externo de compra (secreto compartido)
     },
     # Nº de proxies de confianza delante de Django (nginx). Sin esto, DRF usa
     # tal cual el contenido de X-Forwarded-For como identificador del throttle
@@ -170,6 +171,17 @@ DISABLE_SCHEDULER = env.bool("MAILERUP_DISABLE_SCHEDULER", default=False)
 # suscriptores en rebote duro. Vacío = ingesta de rebotes desactivada (no
 # todos los despliegues tienen un buzón de rebotes local en el mismo host).
 BOUNCE_MAILDIR_PATH = env("BOUNCE_MAILDIR_PATH", default="")
+
+# Webhook genérico de compra (POST /api/webhooks/purchase/, cabecera
+# X-Webhook-Secret): marca lifecycle_stage=cliente en los suscriptores con ese
+# email. Vacío = endpoint desactivado (404) — genera uno con `openssl rand
+# -hex 32` y configúralo aquí y en quien lo llame (Stripe, Zapier, n8n...).
+PURCHASE_WEBHOOK_SECRET = env("PURCHASE_WEBHOOK_SECRET", default="")
+
+# Scoring automático de awareness_level a partir de aperturas/clics (ver
+# apps/subscribers/scoring.py), ejecutado dentro del mismo scheduler que
+# envía campañas y procesa automatizaciones/rebotes.
+SCORING_INTERVAL_SECONDS = env.int("SCORING_INTERVAL_SECONDS", default=300)
 
 # Email provider (Brevo or SendGrid)
 EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="brevo")

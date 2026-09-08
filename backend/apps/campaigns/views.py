@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from apps.accounts.authentication import CookieJWTAuthentication, ApiKeyAuthentication
 from .models import Campaign
 from .serializers import CampaignSerializer, CampaignListSerializer
-from .tasks import _personalize
+from .tasks import _personalize, _pending_subscribers
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +271,15 @@ class CampaignViewSet(viewsets.ModelViewSet):
             "from_name": campaign.from_name,
             "from_email": campaign.from_email,
         })
+
+    @action(detail=True, methods=["get"], url_path="recipient-count")
+    def recipient_count(self, request, pk=None):
+        """Cuántos suscriptores recibirían esta campaña AHORA MISMO (mismo
+        cálculo que el envío real: grupo/todos + segmento + exclusiones +
+        no repetir a quien ya se le envió + no interrumpir automatizaciones
+        activas), para mostrar "llegará a N personas" antes de enviar."""
+        campaign = self.get_object()
+        return Response({"count": _pending_subscribers(campaign).count()})
 
 
 import os

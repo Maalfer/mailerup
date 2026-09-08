@@ -32,6 +32,7 @@ TICK_SECONDS = getattr(settings, "CAMPAIGN_SEND_INTERVAL_SECONDS", 15)
 DEFAULT_RATE_PER_HOUR = getattr(settings, "CAMPAIGN_SEND_RATE_PER_HOUR", 300)
 AUTOMATION_EVERY_SECONDS = 60
 BOUNCE_EVERY_SECONDS = 120
+SCORING_EVERY_SECONDS = getattr(settings, "SCORING_INTERVAL_SECONDS", 300)
 
 _allowance = 0.0  # "tokens" acumulados (correos que ya podemos enviar)
 
@@ -92,6 +93,7 @@ def _tick():
 def _loop():
     last_automation = 0.0
     last_bounce = 0.0
+    last_scoring = 0.0
     while True:
         try:
             _tick()
@@ -118,6 +120,18 @@ def _loop():
                     log.info("Scheduler: %s rebote(s) registrados", n)
             except Exception:
                 log.exception("Fallo procesando el buzón de rebotes")
+
+        if now - last_scoring >= SCORING_EVERY_SECONDS:
+            last_scoring = now
+            try:
+                from django.db import close_old_connections
+                close_old_connections()
+                from apps.subscribers.scoring import run_scoring_tick
+                n = run_scoring_tick()
+                if n:
+                    log.info("Scheduler: %s suscriptor(es) subieron de nivel de consciencia", n)
+            except Exception:
+                log.exception("Fallo calculando el scoring de awareness_level")
 
         time.sleep(TICK_SECONDS)
 

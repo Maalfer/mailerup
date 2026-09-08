@@ -3,6 +3,7 @@ import io
 import logging
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.utils.dateparse import parse_datetime
 from django.core.validators import validate_email
 from django.db.models import Count, Q
 from django.http import HttpResponse
@@ -306,6 +307,28 @@ def subscriber_detail(request, pk):
     for f in ("email", "first_name", "last_name", "status"):
         if f in request.data:
             setattr(sub, f, request.data[f])
+    if "lifecycle_stage" in request.data:
+        stage = request.data["lifecycle_stage"]
+        if stage not in dict(Subscriber.LIFECYCLE_STAGES):
+            return Response({"detail": "lifecycle_stage no válido"}, status=400)
+        sub.lifecycle_stage = stage
+    if "awareness_level" in request.data:
+        try:
+            level = int(request.data["awareness_level"])
+        except (TypeError, ValueError):
+            return Response({"detail": "awareness_level debe ser un entero"}, status=400)
+        if not (1 <= level <= 5):
+            return Response({"detail": "awareness_level debe estar entre 1 y 5"}, status=400)
+        sub.awareness_level = level
+    if "last_purchase_at" in request.data:
+        raw = request.data["last_purchase_at"]
+        if not raw:
+            sub.last_purchase_at = None
+        else:
+            parsed = parse_datetime(raw)
+            if not parsed:
+                return Response({"detail": "last_purchase_at debe ser ISO 8601"}, status=400)
+            sub.last_purchase_at = parsed
     sub.save()
     return Response(SubscriberSerializer(sub).data)
 
@@ -318,13 +341,25 @@ def add_subscriber(request):
     email = (request.data.get("email") or "").strip().lower()
     if not email:
         return Response({"detail": "email requerido"}, status=400)
+    defaults = {
+        "first_name": request.data.get("first_name", ""),
+        "last_name": request.data.get("last_name", ""),
+    }
+    stage = request.data.get("lifecycle_stage")
+    if stage and stage in dict(Subscriber.LIFECYCLE_STAGES):
+        defaults["lifecycle_stage"] = stage
+    level = request.data.get("awareness_level")
+    if level not in (None, ""):
+        try:
+            level = int(level)
+        except (TypeError, ValueError):
+            level = None
+        if level is not None and 1 <= level <= 5:
+            defaults["awareness_level"] = level
     sub, created = Subscriber.objects.get_or_create(
         list=lst,
         email=email,
-        defaults={
-            "first_name": request.data.get("first_name", ""),
-            "last_name": request.data.get("last_name", ""),
-        },
+        defaults=defaults,
     )
     return Response(SubscriberSerializer(sub).data, status=201 if created else 200)
 
