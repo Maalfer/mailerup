@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.utils.dateparse import parse_datetime
 from django.core.validators import validate_email
 from django.db.models import Count, Q
+from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -311,6 +312,8 @@ def subscriber_detail(request, pk):
         new_status = request.data["status"]
         if new_status not in dict(Subscriber.STATUS):
             return Response({"detail": "status no válido"}, status=400)
+        if new_status != sub.status:
+            sub.unsubscribed_at = timezone.now() if new_status == "unsubscribed" else None
         sub.status = new_status
     if "lifecycle_stage" in request.data:
         stage = request.data["lifecycle_stage"]
