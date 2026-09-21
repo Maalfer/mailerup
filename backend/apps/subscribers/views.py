@@ -105,6 +105,14 @@ def all_subscribers(request):
 
     qs = base.order_by("-subscribed_at")
 
+    # Filtro opcional por estado (?status=active|inactive). "inactive" agrupa
+    # todo lo que no es "active" (dado de baja, rebotado, queja spam).
+    status_filter = (request.query_params.get("status") or "").strip()
+    if status_filter == "active":
+        qs = qs.filter(status="active")
+    elif status_filter == "inactive":
+        qs = qs.exclude(status="active")
+
     # Filtro opcional por email/nombre (server-side).
     search = (request.query_params.get("search") or "").strip()
     if search:

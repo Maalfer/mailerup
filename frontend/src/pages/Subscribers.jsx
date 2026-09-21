@@ -446,6 +446,7 @@ export default function Subscribers() {
   // Grupos.
   const [groups, setGroups] = useState([])
   const [selectedGroup, setSelectedGroup] = useState('')  // ''=todos los grupos
+  const [statusFilter, setStatusFilter] = useState('')  // ''=todos, active, inactive
   const [showGroups, setShowGroups] = useState(false)
 
   // Paginación + búsqueda (server-side).
@@ -470,11 +471,13 @@ export default function Subscribers() {
     const ps = opts.pageSize ?? pageSize
     const s = opts.search ?? search
     const g = opts.group ?? selectedGroup
+    const st = opts.status ?? statusFilter
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(p), page_size: String(ps) })
       if (s) params.set('search', s)
       if (g) params.set('list', g)
+      if (st) params.set('status', st)
       const r = await api.get(`/subscribers/all/?${params.toString()}`)
       setItems(r.data.results)
       setTotal(r.data.count ?? 0)
@@ -486,7 +489,7 @@ export default function Subscribers() {
     }
   }
 
-  useEffect(() => { load({ page, pageSize, search, group: selectedGroup }) }, [page, pageSize, search, selectedGroup])
+  useEffect(() => { load({ page, pageSize, search, group: selectedGroup, status: statusFilter }) }, [page, pageSize, search, selectedGroup, statusFilter])
 
   function goToPage(p) {
     const clamped = Math.max(1, Math.min(p, totalPages))
@@ -663,6 +666,17 @@ export default function Subscribers() {
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name} ({g.subscriber_count})</option>
               ))}
+            </select>
+            <label htmlFor="status-filter" className="text-sm text-gray-500 dark:text-slate-400 ml-1">Estado</label>
+            <select
+              id="status-filter"
+              className="input w-auto"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            >
+              <option value="">Todos</option>
+              <option value="active">Activos</option>
+              <option value="inactive">No activos</option>
             </select>
             <label htmlFor="page-size" className="text-sm text-gray-500 dark:text-slate-400 ml-1">Por página</label>
             <select id="page-size" className="input w-auto" value={pageSize} onChange={changePageSize}>
