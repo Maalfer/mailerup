@@ -150,7 +150,7 @@ def _send_verification_email(form_obj, email, first_name, verify_url):
             to_name=first_name,
             from_name=form_obj.user.from_name or "Newsletter",
             from_email=from_email,
-            subject="Confirma tu suscripción para recibir el recurso de ciberseguridad",
+            subject="Confirma tu suscripción",
             html=html,
             campaign_id=None,
             subscriber_id=None,
@@ -243,10 +243,8 @@ class SubscribeView(APIView):
         body = (
             '<div class="ico">&#x1F4E9;</div>'
             f'<h1>{greeting}</h1>'
-            '<p>Para enviarte el recurso solo queda <strong>un último paso</strong>: confirmar tu correo.</p>'
             f'<p>Te acabamos de enviar un email a <span class="email">{safe_email}</span>. '
-            'Ábrelo y pulsa el botón de confirmación y, en cuanto lo hagas, '
-            '<strong>recibirás el recurso en tu bandeja de entrada en unos minutos</strong>.</p>'
+            'Ábrelo y pulsa el botón de confirmación.</p>'
             '<p class="muted">¿No lo ves? Revisa la carpeta de spam o promociones. El enlace caduca en 48 horas.</p>'
         )
         return HttpResponse(FORM_PAGE.format(title="Revisa tu correo para recibir el recurso", body=body))
