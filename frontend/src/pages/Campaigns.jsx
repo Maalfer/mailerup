@@ -31,7 +31,12 @@ export default function Campaigns() {
   useEffect(() => { load() }, [])
 
   const current = TABS.find((t) => t.key === tab)
-  const filtered = items.filter((c) => current.statuses.includes(c.status))
+  const filtered = items
+    .filter((c) => current.statuses.includes(c.status))
+    .sort((a, b) => {
+      if (tab === 'scheduled') return new Date(a.scheduled_at) - new Date(b.scheduled_at)
+      return 0
+    })
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
