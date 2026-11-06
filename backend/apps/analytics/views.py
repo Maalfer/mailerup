@@ -106,7 +106,9 @@ def _safe_redirect(url):
     """Redirige a URLs http(s) absolutas o rutas relativas propias (/path).
     Bloquea esquemas peligrosos (javascript:, data:…) y URLs scheme-relative
     (//evil.com) que podrían redirigir a otro dominio."""
+    import html as _html
     from urllib.parse import urlparse
+    url = _html.unescape(url or "")  # el HTML guarda '&amp;'; el destino real lleva '&'
     try:
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
@@ -118,6 +120,26 @@ def _safe_redirect(url):
     if not scheme and url.startswith("/") and not url.startswith("//"):
         return redirect(url)
     return redirect("/")
+
+
+SHOP_HOSTS = ("elrincondelhacker.es", "www.elrincondelhacker.es")
+
+
+def _with_subscriber_id(url, subscriber_id):
+    """Añade `mu=<id del suscriptor>` a los enlaces hacia la tienda. La tienda lo guarda en la sesión y
+    lo copia al pago de Stripe: así cada venta se atribuye al suscriptor exacto (no por email/IP)."""
+    import html as _html
+    from urllib.parse import urlparse, urlencode, parse_qsl, urlunparse
+    try:
+        u = _html.unescape(url or "")
+        p = urlparse(u)
+        if p.scheme in ("http", "https") and (p.hostname or "").lower() in SHOP_HOSTS and subscriber_id:
+            q = dict(parse_qsl(p.query, keep_blank_values=True))
+            q.setdefault("mu", str(subscriber_id))
+            return urlunparse(p._replace(query=urlencode(q)))
+    except Exception:
+        pass
+    return url
 
 
 class TrackOpenView(APIView):
@@ -163,7 +185,7 @@ class TrackClickView(APIView):
             )
         except Exception:
             logger.exception("Unexpected error recording click for token %s", token)
-        return _safe_redirect(url)
+        return _safe_redirect(_with_subscriber_id(url, data.get("s")))
 
 
 class TrackAutoOpenView(APIView):
@@ -206,10 +228,11 @@ class TrackAutoClickView(APIView):
                 subscriber_id=data["s"],
                 url=url[:200],
                 ip_address=request.META.get("REMOTE_ADDR"),
+                user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
             )
         except Exception:
             logger.exception("Unexpected error recording auto click for token %s", token)
-        return _safe_redirect(url)
+        return _safe_redirect(_with_subscriber_id(url, data.get("s")))
 
 
 UNSUB_PAGE = """<!doctype html>
@@ -976,3 +999,30 @@ def deliverability_bounce_delete(request, subscriber_id):
     if not deleted:
         return Response({"detail": "No había rebotes registrados para ese suscriptor."}, status=404)
     return Response({"deleted": deleted})
+
+
+_BOT_UA = ("bot", "crawl", "spider", "curl", "wget", "python-requests", "headless", "preview", "monitor")
+
+
+class TrackVisitView(APIView):
+    """Beacon de la web: registra la visita a una página de captación (parte alta del embudo).
+    Recibe JSON (text/plain, para no disparar preflight CORS). Nunca falla de cara al visitante."""
+    permission_classes = (permissions.AllowAny,)
+    authentication_classes = []
+    throttle_scope = "track"
+
+    def post(self, request):
+        import json
+        from .attribution import clean_attribution, path_of
+        from .models import LandingVisit
+        try:
+            data = json.loads(request.body.decode("utf-8", "ignore") or "{}")
+            ua = request.META.get("HTTP_USER_AGENT", "")
+            if isinstance(data, dict) and data.get("visitor_id") and not any(b in ua.lower() for b in _BOT_UA):
+                attr = clean_attribution(data, request.META.get("HTTP_REFERER", ""))
+                attr.pop("landing_path", None)
+                LandingVisit.objects.create(path=(str(data.get("path") or "")[:200] or path_of(request.META.get("HTTP_REFERER", ""))),
+                                            user_agent=ua[:300], **attr)
+        except Exception:
+            logger.exception("No se pudo registrar la visita")
+        return HttpResponse(status=204)

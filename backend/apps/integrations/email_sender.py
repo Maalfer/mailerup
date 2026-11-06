@@ -77,6 +77,31 @@ class SendGridSender(BaseEmailSender):
             return ""
 
 
+def html_to_text(html: str) -> str:
+    """Versión text/plain legible del HTML (enlaces como «texto (url)»).
+
+    Un multipart/alternative con un texto real (en vez de «tu cliente no soporta
+    HTML») mejora la entregabilidad: los filtros de spam penalizan los correos
+    cuya parte de texto está vacía o es un relleno.
+    """
+    import re
+    from html import unescape
+    if not html:
+        return ""
+    t = re.sub(r"(?is)<(script|style|head)[^>]*>.*?</\1>", "", html)
+    t = re.sub(r"(?is)<div[^>]*display:\s*none[^>]*>.*?</div>", "", t)  # preheader oculto
+    t = re.sub(r'(?is)<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+               lambda m: (f"{re.sub(r'<[^>]+>', '', m.group(2)).strip()} ({m.group(1)})"
+                          if not m.group(1).startswith(("#", "mailto:")) else re.sub(r'<[^>]+>', '', m.group(2))), t)
+    t = re.sub(r"(?i)<br\s*/?>", "\n", t)
+    t = re.sub(r"(?i)</(p|div|h[1-6]|li|tr|pre|table|blockquote)>", "\n\n", t)
+    t = re.sub(r"<[^>]+>", "", t)
+    t = unescape(t)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip() + "\n"
+
+
 class EmailSendError(Exception):
     pass
 
@@ -129,7 +154,12 @@ class SMTPSender(BaseEmailSender):
         if list_unsubscribe_url:
             msg["List-Unsubscribe"] = f"<{list_unsubscribe_url}>"
             msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
-        msg.set_content("Tu cliente de correo no soporta HTML.")
+        # Feedback-ID (Google Postmaster): permite el bucle de retroalimentación
+        # de spam por campaña. Formato campaña:tipo:origen:remitente; el último
+        # campo (ID del remitente) debe ser constante para todo el tráfico.
+        _fb_dom = final_from.rsplit("@", 1)[-1]
+        msg["Feedback-ID"] = f"{campaign_id or 'automation'}:newsletter:mailerup:{_fb_dom}"
+        msg.set_content(html_to_text(html) or "Abre este correo en un cliente con soporte HTML.")
         msg.add_alternative(html, subtype="html")
 
         try:

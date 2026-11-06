@@ -107,6 +107,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "login": "10/min",            # frena fuerza bruta / credential stuffing
         "subscribe": "30/min",        # frena abuso del formulario público de alta
+        "track": "180/min",           # beacon de visitas de la web (no debe competir con el alta)
         "api_subscribe": "60/min",    # alta vía API key externa, por key
         "api_subscribe_ip": "120/min",  # tope por IP (pre-auth) del endpoint por-key
         "purchase_webhook": "120/min",  # webhook externo de compra (secreto compartido)

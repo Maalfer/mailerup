@@ -1,8 +1,9 @@
 import logging
 import re
+import time
 from django.core import signing
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.html import escape
 from rest_framework import viewsets, status
@@ -19,9 +20,9 @@ logger = logging.getLogger(__name__)
 SUBSCRIPTION_CONFIRM_SALT = "mailerup.subscription.confirm.v1"
 
 
-def make_subscription_token(email, form_id, first_name="", last_name=""):
+def make_subscription_token(email, form_id, first_name="", last_name="", attempt_id=""):
     return signing.dumps(
-        {"e": email, "f": str(form_id), "fn": first_name, "ln": last_name},
+        {"e": email, "f": str(form_id), "fn": first_name, "ln": last_name, "a": str(attempt_id or "")},
         salt=SUBSCRIPTION_CONFIRM_SALT,
         compress=True,
     )
@@ -31,6 +32,27 @@ def parse_subscription_token(token, max_age_hours=48):
     return signing.loads(
         token, salt=SUBSCRIPTION_CONFIRM_SALT, max_age=60 * 60 * max_age_hours
     )
+
+
+# --- Anti-bot del formulario de alta -------------------------------------
+# Token firmado que la web pide por JS al cargar. Un bot que hace POST directo
+# (sin ejecutar JS) no lo tiene; uno que lo envia de inmediato falla el tiempo minimo.
+SUBSCRIBE_TOKEN_SALT = "mailerup.subscribe.antibot.v1"
+SUBSCRIBE_MIN_SECONDS = 3
+SUBSCRIBE_MAX_SECONDS = 6 * 3600
+_SUBSCRIBE_ORIGINS = ("https://elrincondelhacker.es", "https://www.elrincondelhacker.es")
+
+
+def make_antibot_token():
+    return signing.dumps({"t": time.time()}, salt=SUBSCRIBE_TOKEN_SALT)
+
+
+def antibot_ok(token):
+    try:
+        data = signing.loads(token or "", salt=SUBSCRIBE_TOKEN_SALT, max_age=SUBSCRIBE_MAX_SECONDS)
+        return time.time() - float(data["t"]) >= SUBSCRIBE_MIN_SECONDS
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +119,14 @@ def _build_embed_html(form, base):
 </div>"""
 
 
+_FORM_RESOURCES = {
+    "secuencia-academia": [
+        ("📄 La guía en PDF: la ruta técnica para empezar tu carrera en ciberseguridad", "https://newsletter.elrincondelhacker.es/recurso/ruta-tecnica-ciberseguridad.pdf/"),
+        ("🎥 El roadmap en vídeo: cómo empezar de cero en ciberseguridad", "https://youtu.be/yfhxAQ2WIWE"),
+    ],
+}
+
+
 def _verification_email_html(form_obj, greeting, verify_url):
     """Returns the HTML body for the double-opt-in verification email.
 
@@ -112,13 +142,14 @@ def _verification_email_html(form_obj, greeting, verify_url):
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;margin:0;padding:20px">
 <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:36px;border:1px solid #e2e8f0">
   <h2 style="margin:0 0 8px;color:#111827">{safe_title}</h2>
-  <p style="color:#374151;margin:0 0 24px">{greeting} Por favor confirma tu suscripcion haciendo clic en el boton:</p>
+  <p style="color:#374151;margin:0 0 24px;line-height:1.6">{greeting} un último paso: confirma tu correo y te envío <strong>el roadmap para empezar en ciberseguridad</strong> (guía en PDF y vídeo) en unos minutos.</p>
   <p style="text-align:center;margin:0 0 24px">
     <a href="{verify_url}" style="display:inline-block;padding:12px 28px;background:{color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px">
-      Confirmar suscripcion
+      Confirmar mi correo y recibir el roadmap
     </a>
   </p>
-  <p style="color:#6b7280;font-size:13px;margin:0">Si no has solicitado esta suscripcion, ignora este correo. El enlace caduca en 48 horas.</p>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 12px;line-height:1.6">Si el botón no funciona, copia y pega este enlace en tu navegador:<br><span style="word-break:break-all;color:#374151">{verify_url}</span></p>
+  <p style="color:#6b7280;font-size:13px;margin:0;line-height:1.6">Si no has solicitado esta suscripción, ignora este correo. El enlace caduca en 48 horas. Si después de confirmar no ves el correo, revisa la carpeta de spam o promociones.</p>
 </div>
 </body></html>"""
 
@@ -150,7 +181,7 @@ def _send_verification_email(form_obj, email, first_name, verify_url):
             to_name=first_name,
             from_name=form_obj.user.from_name or "Newsletter",
             from_email=from_email,
-            subject="Confirma tu suscripción para recibir el recurso de ciberseguridad",
+            subject="Último paso: confirma tu correo para recibir tu roadmap de ciberseguridad",
             html=html,
             campaign_id=None,
             subscriber_id=None,
@@ -187,6 +218,21 @@ class SubscriptionFormViewSet(viewsets.ModelViewSet):
 # Public views (no authentication required)
 # ---------------------------------------------------------------------------
 
+class SubscribeTokenView(APIView):
+    """Entrega el token anti-bot a los formularios de la web (CORS acotado)."""
+    permission_classes = [AllowAny]
+    throttle_scope = "subscribe"
+
+    def get(self, request):
+        resp = JsonResponse({"tk": make_antibot_token()})
+        origin = request.META.get("HTTP_ORIGIN", "")
+        if origin in _SUBSCRIBE_ORIGINS:
+            resp["Access-Control-Allow-Origin"] = origin
+            resp["Vary"] = "Origin"
+        resp["Cache-Control"] = "no-store"
+        return resp
+
+
 class SubscribeView(APIView):
     permission_classes = [AllowAny]
     throttle_scope = "subscribe"
@@ -201,6 +247,13 @@ class SubscribeView(APIView):
 
         form_obj = get_object_or_404(SubscriptionForm, pk=form_id, is_active=True)
 
+        if not antibot_ok(request.POST.get("tk") or request.data.get("tk")):
+            logger.info("Alta rechazada por anti-bot (sin token valido) form=%s", form_id)
+            return HttpResponse(FORM_PAGE.format(
+                title="No hemos podido verificarte",
+                body='<div class="ico">&#x1F6E1;&#xFE0F;</div><h1>No hemos podido verificarte</h1><p>Vuelve a la p&aacute;gina, espera un par de segundos y pulsa de nuevo &laquo;Suscribirme&raquo;. Necesitas tener JavaScript activado.</p>'
+            ), status=400)
+
         # Support both JSON and form data
         if request.content_type and "application/json" in request.content_type:
             data = request.data
@@ -213,8 +266,8 @@ class SubscribeView(APIView):
 
         if not email or "@" not in email:
             return HttpResponse(FORM_PAGE.format(
-                title="Email invalido",
-                body='<div class="ico">&#x26A0;&#xFE0F;</div><h1>Email invalido</h1><p>Por favor introduce una direccion de correo valida.</p>'
+                title="Email inválido",
+                body='<div class="ico">&#x26A0;&#xFE0F;</div><h1>Email inválido</h1><p>Por favor, introduce una dirección de correo válida.</p>'
             ), status=400)
 
         # Check if already an active subscriber
@@ -223,14 +276,37 @@ class SubscribeView(APIView):
 
         lst = form_obj.target_list or _get_or_create_default_list(form_obj.user)
         existing = Subscriber.objects.filter(list=lst, email=email, status="active").first()
+
+        # Trazabilidad: cada envío del formulario queda registrado con su origen (aunque nunca confirme).
+        attempt = None
+        try:
+            from apps.analytics.attribution import clean_attribution
+            from apps.analytics.models import SignupAttempt
+            _attr = clean_attribution(data, request.META.get("HTTP_REFERER", ""))
+            attempt = SignupAttempt.objects.create(
+                form=form_obj, email=email[:254],
+                outcome="already_subscribed" if existing else "pending",
+                subscriber=existing, **_attr,
+            )
+        except Exception:
+            logger.exception("No se pudo registrar el intento de alta de %s", email)
+
         if existing:
+            # Quien vuelve a pedir el recurso no debe encontrarse un callejón sin salida:
+            # se le muestran directamente los enlaces (son públicos).
+            extra = ""
+            _auto = getattr(form_obj, "automation", None)
+            _res = _FORM_RESOURCES.get(getattr(_auto, "name", None))
+            if _res:
+                items = "".join(f'<li style="margin:8px 0"><a href="{u}">{escape(t)}</a></li>' for t, u in _res)
+                extra = f'<p>Por si no lo encuentras en tu correo, aquí tienes el recurso:</p><ul style="text-align:left;list-style:none;padding:0">{items}</ul>'
             return HttpResponse(FORM_PAGE.format(
                 title="Ya suscrito",
-                body=f'<div class="ico">&#x2705;</div><h1>Ya estas suscrito</h1><p>El correo <span class="email">{escape(email)}</span> ya forma parte de esta newsletter.</p>'
+                body=f'<div class="ico">&#x2705;</div><h1>Ya estás suscrito</h1><p>El correo <span class="email">{escape(email)}</span> ya forma parte de esta newsletter.</p>{extra}'
             ))
 
         # Generate token and send verification email
-        token = make_subscription_token(email, form_obj.id, first_name, last_name)
+        token = make_subscription_token(email, form_obj.id, first_name, last_name, attempt.id if attempt else "")
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         verify_url = f"{base}/verify-subscription/{token}/"
 
@@ -259,11 +335,11 @@ class VerifySubscriptionView(APIView):
         try:
             data = parse_subscription_token(token)
         except signing.SignatureExpired:
-            body = '<div class="ico">&#x23F0;</div><h1>Enlace caducado</h1><p>El enlace de confirmacion ha caducado (48h). Vuelve a rellenar el formulario para recibir uno nuevo.</p>'
+            body = '<div class="ico">&#x23F0;</div><h1>Enlace caducado</h1><p>El enlace de confirmación ha caducado (48 h). Vuelve a rellenar el formulario para recibir uno nuevo.</p>'
             return HttpResponse(FORM_PAGE.format(title="Enlace caducado", body=body), status=400)
         except signing.BadSignature:
-            body = '<div class="ico">&#x26A0;&#xFE0F;</div><h1>Enlace invalido</h1><p>Este enlace no es valido.</p>'
-            return HttpResponse(FORM_PAGE.format(title="Enlace invalido", body=body), status=400)
+            body = '<div class="ico">&#x26A0;&#xFE0F;</div><h1>Enlace inválido</h1><p>Este enlace no es válido.</p>'
+            return HttpResponse(FORM_PAGE.format(title="Enlace inválido", body=body), status=400)
 
         try:
             form_obj = SubscriptionForm.objects.get(pk=data["f"])
@@ -284,14 +360,38 @@ class VerifySubscriptionView(APIView):
             email=email,
             defaults={"first_name": first_name, "last_name": last_name, "status": "active"},
         )
-        if not created and subscriber.status != "active":
+        reactivated = (not created) and subscriber.status != "active"
+        if reactivated:
             subscriber.status = "active"
             subscriber.save(update_fields=["status"])
+
+        # Trazabilidad: fija el origen (first-touch) y cierra el intento de alta.
+        try:
+            from django.utils import timezone as _tz
+            from apps.analytics.models import SignupAttempt
+            attempt = SignupAttempt.objects.filter(pk=data.get("a")).first() if data.get("a") else None
+            if attempt:
+                if not subscriber.source:
+                    for f in ("source", "utm_source", "utm_medium", "utm_campaign", "utm_content", "landing_path",
+                              "referrer_host", "manychat_sid", "manychat_pid", "visitor_id"):
+                        setattr(subscriber, f, getattr(attempt, f))
+                    subscriber.attribution_method = "captured"
+                    subscriber.save(update_fields=["source", "utm_source", "utm_medium", "utm_campaign", "utm_content",
+                                                   "landing_path", "referrer_host", "manychat_sid", "manychat_pid",
+                                                   "visitor_id", "attribution_method"])
+                attempt.outcome, attempt.confirmed_at, attempt.subscriber = "confirmed", _tz.now(), subscriber
+                attempt.save(update_fields=["outcome", "confirmed_at", "subscriber"])
+            elif not subscriber.source:
+                # Alta sin datos de origen (enlace de confirmación anterior a la trazabilidad).
+                subscriber.source, subscriber.attribution_method = "web", "inferred"
+                subscriber.save(update_fields=["source", "attribution_method"])
+        except Exception:
+            logger.exception("No se pudo guardar el origen del suscriptor %s", email)
 
         # Trigger automations if available (dynamic import to avoid circular imports)
         try:
             from apps.automations.tasks import trigger_automation_for_subscriber
-            trigger_automation_for_subscriber.delay(str(subscriber.id), str(form_obj.id))
+            trigger_automation_for_subscriber.delay(str(subscriber.id), str(form_obj.id), bool(reactivated))
         except Exception:
             pass  # automations app may not be available yet
 
@@ -299,7 +399,7 @@ class VerifySubscriptionView(APIView):
         # (success_message es editable por cualquier usuario autenticado → stored XSS).
         success_msg = escape(form_obj.success_message)
         safe_email = escape(email)
-        body = f'<div class="ico">&#x1F389;</div><h1>Suscripcion confirmada!</h1><p>{success_msg}</p><p><span class="email">{safe_email}</span></p>'
+        body = f'<div class="ico">&#x1F389;</div><h1>¡Suscripción confirmada!</h1><p>{success_msg}</p><p><span class="email">{safe_email}</span></p>'
 
         if form_obj.redirect_url:
             # Solo redirigir a http/https. Bloquea esquemas peligrosos

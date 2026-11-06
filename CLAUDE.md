@@ -197,3 +197,4 @@ curl -s -o /dev/null -w "subs %{http_code}\n" -H 'X-Forwarded-Proto: https' http
 # End-to-end (a través de nginx/Cloudflare):
 curl -s -o /dev/null -w "site %{http_code}\n" https://newsletter.example.com/   # 200
 ```
+- **Trazabilidad de leads** (origen, embudo por paso, compras atribuidas): ver `docs/TRAZABILIDAD.md` e informe `scripts/informe_embudo.py`.

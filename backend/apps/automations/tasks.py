@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
-def trigger_automation_for_subscriber(subscriber_id, form_id):
+def trigger_automation_for_subscriber(subscriber_id, form_id, restart=False):
     """
     Llamada cuando alguien verifica su suscripción a través de un formulario.
     Busca la automatización asociada al formulario y enrola al suscriptor.
@@ -39,7 +39,18 @@ def trigger_automation_for_subscriber(subscriber_id, form_id):
         defaults={"status": "active"},
     )
     if not created:
-        return  # ya estaba enrolado
+        # Ya estaba enrolado. Si es una PERSONA QUE VUELVE (se había dado de baja, o rebotó, y ha
+        # reconfirmado el formulario) la secuencia se reinicia: si no, confirmaría su alta y no
+        # recibiría el recurso que ha pedido (la matrícula antigua está completada/cancelada).
+        if restart and enrollment.status in ("completed", "cancelled"):
+            from django.utils import timezone as _tz
+            AutomationSend.objects.filter(enrollment=enrollment).delete()
+            enrollment.status = "active"
+            enrollment.last_step_sent = -1
+            enrollment.enrolled_at = _tz.now()
+            enrollment.save(update_fields=["status", "last_step_sent", "enrolled_at"])
+            process_automation_queue.delay()
+        return
 
     # Programar el primer paso
     process_automation_queue.delay()
@@ -159,6 +170,9 @@ def process_automation_queue():
                     html=html,
                     campaign_id=None,
                     subscriber_id=str(subscriber.id),
+                    # Baja en un clic (RFC 8058): Gmail/Yahoo la exigen también en los correos de
+                    # automatización; antes solo la llevaban las campañas.
+                    list_unsubscribe_url=unsub_url,
                 )
             except Exception:
                 logger.exception("Error sending automation step %s to %s", step.id, subscriber.email)

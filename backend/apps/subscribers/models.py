@@ -49,6 +49,22 @@ class Subscriber(models.Model):
     awareness_level = models.PositiveSmallIntegerField(default=1)
     last_purchase_at = models.DateTimeField(null=True, blank=True)
 
+    # Trazabilidad de origen (first-touch: se fija al confirmar el alta y no se pisa).
+    # Se rellena en forms.VerifySubscriptionView desde el SignupAttempt. Ver docs/TRAZABILIDAD.md.
+    #   source: manychat | email | web | <utm_source> | import | manual | api | "" (desconocido)
+    #   attribution_method: captured (viajó con el formulario) | inferred (reconstruido después) | ""
+    source = models.CharField(max_length=30, blank=True, default="", db_index=True)
+    utm_source = models.CharField(max_length=100, blank=True, default="")
+    utm_medium = models.CharField(max_length=100, blank=True, default="")
+    utm_campaign = models.CharField(max_length=100, blank=True, default="")
+    utm_content = models.CharField(max_length=100, blank=True, default="")
+    landing_path = models.CharField(max_length=200, blank=True, default="")
+    referrer_host = models.CharField(max_length=100, blank=True, default="")
+    manychat_sid = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    manychat_pid = models.CharField(max_length=40, blank=True, default="")
+    visitor_id = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    attribution_method = models.CharField(max_length=12, blank=True, default="")
+
     class Meta:
         unique_together = ("list", "email")
         ordering = ["-subscribed_at"]

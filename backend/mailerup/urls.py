@@ -3,9 +3,9 @@ from django.urls import path, include
 from apps.accounts.views import CookieTokenObtainView, CookieTokenRefreshView, CookieTokenLogoutView
 from apps.analytics.views import (
     UnsubscribeView, TrackOpenView, TrackClickView,
-    TrackAutoOpenView, TrackAutoClickView,
+    TrackAutoOpenView, TrackAutoClickView, TrackVisitView,
 )
-from apps.forms.views import SubscribeView, VerifySubscriptionView
+from apps.forms.views import SubscribeTokenView, SubscribeView, VerifySubscriptionView
 from apps.campaigns.views import serve_resource
 from apps.subscribers.views import PublicAddSubscriberView
 from apps.integrations.webhooks import PurchaseWebhookView
@@ -18,9 +18,11 @@ urlpatterns = [
     path('c/<str:token>/', TrackClickView.as_view(), name='track-click'),
     path('oa/<str:token>/', TrackAutoOpenView.as_view(), name='track-auto-open'),
     path('ca/<str:token>/', TrackAutoClickView.as_view(), name='track-auto-click'),
+    path('t/v/', TrackVisitView.as_view(), name='track-visit'),
     # Public resource serving (files attached to campaigns)
     path('recurso/<str:name>/', serve_resource, name='serve-resource'),
     # Public form endpoints
+    path('subscribe/token/', SubscribeTokenView.as_view(), name='public-subscribe-token'),
     path('subscribe/<uuid:form_id>/', SubscribeView.as_view(), name='public-subscribe'),
     path('verify-subscription/<str:token>/', VerifySubscriptionView.as_view(), name='verify-subscription'),
     # Auth

@@ -231,6 +231,20 @@ def _personalize(html, subscriber, campaign):
     # resuelve en el .replace de abajo.
     html = apply_footer(html, campaign.user)
 
+    # Texto de vista previa (preheader): lo que el cliente de correo muestra junto
+    # al asunto en la bandeja. Oculto en el cuerpo; el relleno evita que el cliente
+    # complete la línea con el primer texto visible del correo.
+    _pre = (getattr(campaign, "preview_text", "") or "").strip()
+    if _pre:
+        from django.utils.html import escape as _esc
+        _pre_div = ('<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">'
+                    + _esc(_pre) + "&#8199;&#847; " * 30 + "</div>")
+        if "<body" in html.lower():
+            import re as _re
+            html = _re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + _pre_div, html, count=1, flags=_re.I)
+        else:
+            html = _pre_div + html
+
     # Escapamos los datos del suscriptor: first_name/last_name/email llegan del
     # formulario público de alta sin sanear, y aquí se insertan en HTML que se
     # envía como correo. Sin escapar, un tercero podría inyectar HTML/markup en

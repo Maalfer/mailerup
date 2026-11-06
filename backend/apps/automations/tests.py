@@ -71,3 +71,60 @@ class UnsubscribeStopsAutomationTests(TestCase):
         self.assertTrue(
             AutomationSend.objects.filter(enrollment=self.enrollment, step=step2).exists()
         )
+
+
+class ResubscribeAndUnsubscribeHeaderTests(TestCase):
+    """Regresión: (1) quien se da de baja y vuelve a confirmar el formulario debe recibir de nuevo
+    el recurso; (2) los correos de automatización llevan la cabecera de baja en un clic."""
+
+    def setUp(self):
+        from apps.forms.models import SubscriptionForm
+        self.user = User.objects.create_user(email="admin2@example.com", password="x")
+        self.list = SubscriberList.objects.create(user=self.user, name="Lista")
+        self.sub = Subscriber.objects.create(list=self.list, email="vuelve@example.com", status="active")
+        self.form = SubscriptionForm.objects.create(user=self.user, name="f", title="t", target_list=self.list)
+        self.auto = Automation.objects.create(user=self.user, name="Bienvenida", is_active=True, form=self.form)
+        self.step = AutomationStep.objects.create(
+            automation=self.auto, order=0, subject="Guía", html_content="<p>hola</p>", delay_amount=0, delay_unit="minutes",
+        )
+        self.enr = AutomationEnrollment.objects.create(
+            automation=self.auto, subscriber=self.sub, status="completed", last_step_sent=0,
+        )
+        AutomationSend.objects.create(enrollment=self.enr, step=self.step)
+
+    def _trigger(self, restart):
+        from unittest import mock
+        from .tasks import trigger_automation_for_subscriber, process_automation_queue
+        with mock.patch.object(process_automation_queue, "delay") as d:
+            trigger_automation_for_subscriber(str(self.sub.id), str(self.form.id), restart)
+        self.enr.refresh_from_db()
+        return d
+
+    def test_vuelve_tras_baja_reinicia_la_secuencia(self):
+        d = self._trigger(True)
+        self.assertEqual(self.enr.status, "active")
+        self.assertEqual(self.enr.last_step_sent, -1)
+        self.assertFalse(AutomationSend.objects.filter(enrollment=self.enr).exists())
+        d.assert_called_once()
+
+    def test_sin_reactivacion_no_se_reinicia(self):
+        d = self._trigger(False)
+        self.assertEqual(self.enr.status, "completed")
+        self.assertTrue(AutomationSend.objects.filter(enrollment=self.enr).exists())
+        d.assert_not_called()
+
+    def test_correo_de_automatizacion_lleva_baja_en_un_clic(self):
+        from unittest import mock
+        AutomationEnrollment.objects.filter(pk=self.enr.pk).update(status="active", last_step_sent=-1)
+        AutomationSend.objects.filter(enrollment=self.enr).delete()
+        sent = []
+
+        class FakeSender:
+            def send(self, **kw):
+                sent.append(kw)
+                return "id"
+
+        with mock.patch("apps.integrations.email_sender.get_sender", return_value=FakeSender()):
+            process_automation_queue()
+        self.assertEqual(len(sent), 1)
+        self.assertIn("/u/", sent[0].get("list_unsubscribe_url", ""))
