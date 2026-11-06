@@ -53,7 +53,14 @@ if [ "$DO_BACKUP" -eq 1 ]; then
   mkdir -p "$APP_DIR/backups"
   TS=$(date +%F_%H%M%S)
   echo "[update] Backup de la BD → backups/mailerup_$TS.dump"
-  pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" "$DB_NAME" > "$APP_DIR/backups/mailerup_$TS.dump"
+  # Como root se usa el usuario del sistema "postgres" (autenticación peer, sin
+  # contraseña). Si no, se cae al usuario de la app (necesita PGPASSWORD/.pgpass).
+  if [ "$(id -u)" -eq 0 ] && id postgres >/dev/null 2>&1; then
+    BK="$APP_DIR/backups/mailerup_$TS.dump"
+    runuser -u postgres -- pg_dump -Fc "$DB_NAME" > "$BK" || { rm -f "$BK"; echo "[update] ERROR: falló el backup, abortando"; exit 1; }
+  else
+    pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" "$DB_NAME" > "$APP_DIR/backups/mailerup_$TS.dump"
+  fi
 fi
 
 if [ "$DO_GIT" -eq 1 ]; then
