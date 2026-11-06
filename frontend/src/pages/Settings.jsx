@@ -56,12 +56,9 @@ export default function Settings() {
     try {
       const payload = { ...me }
       delete payload.id; delete payload.email; delete payload.smtp_password_set
-      delete payload.brevo_api_key_set; delete payload.sendgrid_api_key_set
-      // Las claves son write_only: si están en blanco no se reenvían (el backend
-      // las mantiene). Así guardar ajustes no borra la API key ya configurada.
+      // La contraseña SMTP es write_only: si está en blanco no se reenvía (el backend
+      // la mantiene). Así guardar ajustes no borra la ya configurada.
       if (!payload.smtp_password) delete payload.smtp_password
-      if (!payload.brevo_api_key) delete payload.brevo_api_key
-      if (!payload.sendgrid_api_key) delete payload.sendgrid_api_key
       const r = await api.patch('/auth/me/', payload)
       setMe(r.data)
       setSavedMsg({ ok: true, text: 'Ajustes guardados' })
@@ -130,7 +127,6 @@ export default function Settings() {
 
   const isAdmin = !!me.is_admin
   const isSmtp = currentProvider?.kind === 'smtp'
-  const isApi = currentProvider?.kind === 'api'
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -247,23 +243,6 @@ export default function Settings() {
           </div>
         )}
 
-        {isApi && me.email_provider === 'brevo' && (
-          <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
-            <label className="label">Brevo API key</label>
-            <input className="input" type="password" value={me.brevo_api_key || ''}
-              onChange={(e) => setMeField('brevo_api_key', e.target.value)}
-              placeholder={me.brevo_api_key_set ? '••••••••  (guardada)' : 'xkeysib-...'} />
-          </div>
-        )}
-        {isApi && me.email_provider === 'sendgrid' && (
-          <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
-            <label className="label">SendGrid API key</label>
-            <input className="input" type="password" value={me.sendgrid_api_key || ''}
-              onChange={(e) => setMeField('sendgrid_api_key', e.target.value)}
-              placeholder={me.sendgrid_api_key_set ? '••••••••  (guardada)' : 'SG...'} />
-          </div>
-        )}
-
         {currentProvider?.dns && (
           <DnsSetupBlock
             provider={currentProvider}
@@ -300,7 +279,7 @@ export default function Settings() {
           </div>
           {me.email_provider === 'local' && (
             <p className="text-xs text-gray-400 dark:text-slate-500">
-              En modo "Local" no se envían correos. Elige un proveedor SMTP/API para poder probar.
+              En modo "Local" no se envían correos. Elige un proveedor SMTP para poder probar.
             </p>
           )}
           {testMsg && <Msg msg={testMsg} />}

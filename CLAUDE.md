@@ -67,7 +67,7 @@ cd backend && python manage.py runserver  # DJANGO_SETTINGS_MODULE=mailerup.sett
 
 - **Apps activas**: `accounts`, `subscribers`, `campaigns`, `analytics`, `integrations`, `forms` (label `subscription_forms`), `automations`.
 - **Settings**: `mailerup/settings/{base,development,production}.py`. `production` y `development` activan `CELERY_TASK_ALWAYS_EAGER=True` (las tareas Celery corren en el mismo hilo, sin Redis). `production` confía en `X-Forwarded-Proto` (TLS lo termina nginx/Cloudflare) y fuerza `SECURE_SSL_REDIRECT`.
-- **Modelo `User`** (`apps/accounts/models.py`): extiende `AbstractUser`. SMTP (`email_provider`, `smtp_*`, `brevo_api_key`, `sendgrid_api_key`), pie de correo (`footer_*`), remitente (`from_name`, `from_email`). **Rol admin = `is_staff=True`** (el serializer lo expone como `is_admin`). Datos compartidos entre usuarios vía `get_admin_user()`.
+- **Modelo `User`** (`apps/accounts/models.py`): extiende `AbstractUser`. SMTP (`email_provider`, `smtp_*`), pie de correo (`footer_*`), remitente (`from_name`, `from_email`). **Rol admin = `is_staff=True`** (el serializer lo expone como `is_admin`). Datos compartidos entre usuarios vía `get_admin_user()`.
 - **Grupos de suscriptores**: `subscribers.SubscriberList` = "grupo". `Subscriber` pertenece a UNA lista (FK `list`, `unique_together(list,email)`). Cada `forms.SubscriptionForm` tiene `target_list` (a qué grupo entran los suscriptores; fallback a `_get_or_create_default_list`). CRUD de grupos en `/api/subscribers/groups/`; `all_subscribers`/`export`/`import`/`add` aceptan `?list=` (sin él = todos los grupos).
 - **`Campaign`**: estados `draft|scheduled|sending|sent|paused`. Destinatarios: un grupo (`subscriber_list`) o `send_to_all=True` (todos los grupos, deduplicando por email con `DISTINCT ON` de Postgres en `_pending_subscribers`).
 - **Automatizaciones** (`apps/automations/`): `Automation` → `AutomationStep` (PK UUID) → `AutomationEnrollment`/`AutomationSend`. El scheduler dispara `process_automation_queue` cada 30-60s. Cada paso inyecta pixel de apertura (`/oa/<token>/`) y reescribe enlaces (`/ca/<token>/`). Métricas en `analytics.AutomationEmailOpen/Click`.
@@ -92,8 +92,7 @@ newsletter, los suscriptores y las campañas — eso es intencionado. Las reglas
    (`serve_resource`, sin firma — el control es que el nombre es un UUID4 no adivinable, no un
    token verificado; no subir ahí nada que no deba ser público conociendo su URL). **Cualquier
    vista nueva que liste o exponga datos debe heredar `IsAuthenticated` (no poner `AllowAny`).**
-3. **Solo el admin ve/edita las API keys y credenciales de proveedor.** `brevo_api_key`,
-   `sendgrid_api_key` y `smtp_password` son `write_only` en `UserSerializer` (nunca se devuelven
+3. **Solo el admin ve/edita las credenciales SMTP.** `smtp_password` es `write_only` en `UserSerializer` (nunca se devuelven
    en `GET /api/auth/me/`; la UI solo recibe flags `*_set`). Los campos `ADMIN_ONLY_FIELDS`
    (provider/SMTP/footer) solo los modifica un admin; un no-admin los hereda en lectura pero
    `UserSerializer.update()` los descarta si intenta escribirlos. Las credenciales SMTP viven en
@@ -143,7 +142,7 @@ verifica que estos 8 invariantes siguen en pie.
 1. **Postgres en producción** (nativo, `127.0.0.1:5432`, vía `DATABASE_URL`). SQLite solo para desarrollo local.
 2. **Sin Redis**. Celery en EAGER; el scheduler usa `threading.Thread`. **1 worker** de uvicorn.
 3. **Tokens públicos firmados**. Nunca expongas UUIDs de Subscriber/Campaign/Step en URLs de emails — usa `make_unsubscribe_token` / `make_track_token` / `make_auto_track_token`.
-4. **Settings de proveedor compartidos**: solo admins editan provider/SMTP/footer y las **API keys (Brevo/SendGrid) y la contraseña SMTP**; los usuarios normales heredan la config (no los secretos) vía `get_sender()`. Las keys son `write_only`: nunca se devuelven en lecturas.
+4. **Settings de proveedor compartidos**: solo admins editan provider/SMTP/footer y la **contraseña SMTP**; los usuarios normales heredan la config (no los secretos) vía `get_sender()`. Las keys son `write_only`: nunca se devuelven en lecturas.
 5. **`from_email` alineado con `smtp_user`** (la UI lo auto-sincroniza y el sender lo fuerza). No revertir.
 6. **Roles**: usar `is_staff`. No introducir un campo `role` separado.
 7. **Seguridad por defecto**: API privada (`IsAuthenticated`), sin registro anónimo, entrada pública escapada. Los 8 invariantes de la sección "Modelo de seguridad" son la **prioridad máxima** del proyecto.
@@ -155,7 +154,7 @@ verifica que estos 8 invariantes siguen en pie.
 - No reintroducir envío de campañas inline en el thread del request HTTP. El envío es **progresivo por lotes** vía el scheduler.
 - Las **credenciales SMTP se guardan en `.env`** (no en la BD): se escriben con `update_env()` y se leen con `smtp_config_from_env()` (`apps/integrations/email_sender.py`). No volver a persistir `smtp_password` en la BD.
 - La app arranca por **ASGI** (`mailerup.asgi:application`). `wsgi.py` se mantiene por compatibilidad.
-- **Seguridad (ver "Modelo de seguridad")**: no reabrir el registro anónimo; no poner `AllowAny` en vistas que expongan datos; no devolver `brevo_api_key`/`sendgrid_api_key`/`smtp_password` en lecturas (mantener `write_only`); no quitar el escaping de entrada pública ni la validación anti-inyección de `update_env`.
+- **Seguridad (ver "Modelo de seguridad")**: no reabrir el registro anónimo; no poner `AllowAny` en vistas que expongan datos; no devolver `smtp_password` en lecturas (mantener `write_only`); no quitar el escaping de entrada pública ni la validación anti-inyección de `update_env`.
 
 ## Reglas de cambios — OBLIGATORIO
 

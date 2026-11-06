@@ -42,8 +42,6 @@ PROVIDER_CHOICES = [
     ("mailjet", "Mailjet (SMTP)"),
     ("sparkpost", "SparkPost (SMTP)"),
     ("resend", "Resend (SMTP)"),
-    ("brevo", "Brevo (API)"),
-    ("sendgrid", "SendGrid (API)"),
 ]
 
 
@@ -53,8 +51,6 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     company = models.CharField(max_length=150, blank=True)
     timezone = models.CharField(max_length=50, default="Europe/Madrid")
-    brevo_api_key = models.CharField(max_length=255, blank=True)
-    sendgrid_api_key = models.CharField(max_length=255, blank=True)
     email_provider = models.CharField(
         max_length=20,
         choices=PROVIDER_CHOICES,

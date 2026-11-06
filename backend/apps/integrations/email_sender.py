@@ -11,72 +11,6 @@ class BaseEmailSender(ABC):
         pass
 
 
-class BrevoSender(BaseEmailSender):
-    def __init__(self, api_key, tracking_domain=""):
-        self.api_key = api_key
-        self.tracking_domain = tracking_domain
-
-    def send(self, to_email, to_name, from_name, from_email, subject, html,
-             campaign_id=None, subscriber_id=None, list_unsubscribe_url=None):
-        import sib_api_v3_sdk
-        from sib_api_v3_sdk.rest import ApiException
-
-        configuration = sib_api_v3_sdk.Configuration()
-        configuration.api_key["api-key"] = self.api_key
-        api = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
-
-        # Cabeceras de baja en un clic (RFC 8058) — Gmail/Yahoo las exigen a
-        # remitentes masivos. Brevo las propaga como headers del mensaje.
-        headers = None
-        if list_unsubscribe_url:
-            headers = {
-                "List-Unsubscribe": f"<{list_unsubscribe_url}>",
-                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            }
-
-        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email, "name": to_name}],
-            sender={"name": from_name, "email": from_email},
-            subject=subject,
-            html_content=html,
-            headers=headers,
-        )
-        try:
-            result = api.send_transac_email(send_smtp_email)
-            return result.message_id
-        except ApiException as exc:
-            logger.exception("Brevo API error sending to %s: %s", to_email, exc)
-            return ""
-
-
-class SendGridSender(BaseEmailSender):
-    def __init__(self, api_key):
-        self.api_key = api_key
-
-    def send(self, to_email, to_name, from_name, from_email, subject, html,
-             campaign_id=None, subscriber_id=None, list_unsubscribe_url=None):
-        import sendgrid
-        from sendgrid.helpers.mail import Mail, To, From, Header
-
-        sg = sendgrid.SendGridAPIClient(api_key=self.api_key)
-        message = Mail(
-            from_email=From(from_email, from_name),
-            to_emails=To(to_email, to_name),
-            subject=subject,
-            html_content=html,
-        )
-        # Cabeceras de baja en un clic (RFC 8058).
-        if list_unsubscribe_url:
-            message.add_header(Header("List-Unsubscribe", f"<{list_unsubscribe_url}>"))
-            message.add_header(Header("List-Unsubscribe-Post", "List-Unsubscribe=One-Click"))
-        try:
-            response = sg.send(message)
-            return response.headers.get("X-Message-Id", "")
-        except Exception as exc:
-            logger.exception("SendGrid error sending to %s: %s", to_email, exc)
-            return ""
-
-
 def html_to_text(html: str) -> str:
     """Versión text/plain legible del HTML (enlaces como «texto (url)»).
 
@@ -261,11 +195,7 @@ def smtp_config_from_env():
 
 def _build_sender(u) -> "BaseEmailSender | None":
     prov = u.email_provider
-    if prov == "brevo" and u.brevo_api_key:
-        return BrevoSender(u.brevo_api_key)
-    if prov == "sendgrid" and u.sendgrid_api_key:
-        return SendGridSender(u.sendgrid_api_key)
-    if prov not in ("local", "brevo", "sendgrid"):
+    if prov != "local":
         # Prefer SMTP credentials stored in .env; fall back to legacy DB fields
         # (installs that configured SMTP before credentials moved to .env).
         cfg = smtp_config_from_env()

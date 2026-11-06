@@ -202,26 +202,6 @@ PROVIDER_PRESETS = {
             "guide_url": "https://resend.com/docs/dashboard/domains/introduction",
         },
     },
-    "brevo": {
-        "label": "Brevo (API)", "kind": "api",
-        "dns": {
-            "spf_record": "v=spf1 include:spf.brevo.com ~all",
-            "spf_note": "Brevo (antes Sendinblue) requiere verificar el dominio antes de poder enviar desde direcciones del mismo.",
-            "dkim_note": "Brevo → Senders & IP → Domains → Authenticate. Te dan un TXT en mail._domainkey.{domain} (selector 'mail').",
-            "dmarc_record": "v=DMARC1; p=none; rua=mailto:dmarc@{domain}",
-            "guide_url": "https://help.brevo.com/hc/en-us/articles/12163873383186",
-        },
-    },
-    "sendgrid": {
-        "label": "SendGrid (API)", "kind": "api",
-        "dns": {
-            "spf_record": "v=spf1 include:sendgrid.net ~all",
-            "spf_note": "Sin Domain Authentication tu correo se envía como 'sendgrid.net' y reduce la entregabilidad drásticamente.",
-            "dkim_note": "SendGrid → Settings → Sender Authentication → Domain Authentication. Te genera 3 CNAMEs (s1._domainkey.{domain}, s2._domainkey.{domain} y un CNAME de tracking).",
-            "dmarc_record": "v=DMARC1; p=none; rua=mailto:dmarc@{domain}",
-            "guide_url": "https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication",
-        },
-    },
 }
 
 
@@ -343,7 +323,7 @@ def test_email(request):
         return Response({"detail": "Indica un email de destino."}, status=400)
 
     from apps.integrations.email_sender import (
-        get_sender, NullSender, SMTPSender, BrevoSender, SendGridSender, EmailSendError,
+        get_sender, NullSender, SMTPSender, EmailSendError,
     )
 
     sender = get_sender(user)
@@ -351,7 +331,7 @@ def test_email(request):
     if isinstance(sender, NullSender):
         return Response({
             "detail": (
-                "No se ha enviado nada: tu proveedor es 'Local' o el SMTP/API no está "
+                "No se ha enviado nada: tu proveedor es 'Local' o el SMTP no está "
                 "configurado. Selecciona un proveedor en Ajustes, rellena las credenciales "
                 "y guarda antes de probar."
             ),
@@ -363,11 +343,6 @@ def test_email(request):
         return Response({
             "detail": "Falta la contraseña SMTP. Introdúcela en Ajustes y guarda.",
         }, status=400)
-
-    if isinstance(sender, BrevoSender) and not user.brevo_api_key:
-        return Response({"detail": "Falta Brevo API key."}, status=400)
-    if isinstance(sender, SendGridSender) and not user.sendgrid_api_key:
-        return Response({"detail": "Falta SendGrid API key."}, status=400)
 
     from_addr = (user.from_email or smtp_user or "").strip()
     if not from_addr and isinstance(sender, SMTPSender):

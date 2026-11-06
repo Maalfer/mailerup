@@ -58,7 +58,7 @@ Vista de la secuencia completa con todos los pasos ordenados, el delay de cada u
 
 - **Backend**: Django 6 + Django REST Framework + PostgreSQL + JWT (cookies HttpOnly)
 - **Frontend**: React 19 + Vite + Tailwind CSS + Tiptap (editor WYSIWYG)
-- **Envío**: SMTP genérico (~15 presets preconfigurados) o APIs Brevo / SendGrid
+- **Envío**: solo SMTP (genérico o ~15 presets preconfigurados); MailerUp no se conecta a proveedores de email por API
 - **Programación**: hilo de scheduler in-process (sin Celery worker ni Redis necesarios)
 - **Despliegue**: Docker Compose (web + nginx + Postgres)
 
@@ -139,7 +139,7 @@ cat backups/db_AAAAMMDD_HHMMSS.sql | docker compose exec -T db sh -c 'psql -U "$
 
 ## Variables de entorno
 
-- **`backend/.env`** — secretos de Django: `SECRET_KEY`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_BASE_URL` (URL pública para los enlaces de los emails) y la config SMTP/Brevo/SendGrid. Ver `backend/.env.example`.
+- **`backend/.env`** — secretos de Django: `SECRET_KEY`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS`, `PUBLIC_BASE_URL` (URL pública para los enlaces de los emails) y la config SMTP. Ver `backend/.env.example`.
 - **`.env`** (raíz) — Postgres y red: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL` (apunta al servicio `db`) y `NGINX_HOST_PORT`. Ver `.env.example`.
 
 Ambos ficheros están en `.gitignore` y **no se suben** al repo.

@@ -184,10 +184,7 @@ PURCHASE_WEBHOOK_SECRET = env("PURCHASE_WEBHOOK_SECRET", default="")
 # envía campañas y procesa automatizaciones/rebotes.
 SCORING_INTERVAL_SECONDS = env.int("SCORING_INTERVAL_SECONDS", default=300)
 
-# Email provider (Brevo or SendGrid)
-EMAIL_PROVIDER = env("EMAIL_PROVIDER", default="brevo")
-BREVO_API_KEY = env("BREVO_API_KEY", default="")
-SENDGRID_API_KEY = env("SENDGRID_API_KEY", default="")
+# El envío es siempre por SMTP (credenciales SMTP_* en backend/.env).
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@mailerup.com")
 DEFAULT_FROM_NAME = env("DEFAULT_FROM_NAME", default="MailerUp")
 

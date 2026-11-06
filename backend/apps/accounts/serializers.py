@@ -8,7 +8,7 @@ User = get_user_model()
 
 ADMIN_ONLY_FIELDS = {
     "email_provider", "smtp_host", "smtp_port", "smtp_user", "smtp_password",
-    "smtp_use_tls", "smtp_use_ssl", "brevo_api_key", "sendgrid_api_key",
+    "smtp_use_tls", "smtp_use_ssl",
     "footer_company", "footer_address", "footer_unsubscribe_text", "footer_button_label",
     "footer_forward_text", "footer_subscribe_text", "send_rate_per_hour",
 }
@@ -55,14 +55,6 @@ def _overlay_smtp_from_env(data, instance):
 class UserSerializer(serializers.ModelSerializer):
     smtp_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     smtp_password_set = serializers.SerializerMethodField()
-    # Las API keys son secretos: se aceptan al escribir pero NUNCA se devuelven
-    # en claro al leer (igual que smtp_password). La UI muestra un flag *_set en
-    # su lugar. Esto evita que un usuario no-admin reciba la clave del admin en
-    # GET /api/auth/me/ a través del overlay de to_representation.
-    brevo_api_key = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    sendgrid_api_key = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    brevo_api_key_set = serializers.SerializerMethodField()
-    sendgrid_api_key_set = serializers.SerializerMethodField()
     is_admin = serializers.SerializerMethodField()
 
     class Meta:
@@ -73,8 +65,6 @@ class UserSerializer(serializers.ModelSerializer):
             "smtp_host", "smtp_port", "smtp_user",
             "smtp_password", "smtp_password_set",
             "smtp_use_tls", "smtp_use_ssl",
-            "brevo_api_key", "brevo_api_key_set",
-            "sendgrid_api_key", "sendgrid_api_key_set",
             "footer_company", "footer_address",
             "footer_unsubscribe_text", "footer_button_label",
             "footer_forward_text", "footer_subscribe_text",
@@ -104,12 +94,6 @@ class UserSerializer(serializers.ModelSerializer):
     def get_smtp_password_set(self, obj):
         return bool(obj.smtp_password)
 
-    def get_brevo_api_key_set(self, obj):
-        return bool(obj.brevo_api_key)
-
-    def get_sendgrid_api_key_set(self, obj):
-        return bool(obj.sendgrid_api_key)
-
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Non-admin users see the admin's provider/footer config (read-only for them).
@@ -124,8 +108,6 @@ class UserSerializer(serializers.ModelSerializer):
                     if f in admin_data:
                         data[f] = admin_data[f]
                 data["smtp_password_set"] = admin_data.get("smtp_password_set", False)
-                data["brevo_api_key_set"] = admin_data.get("brevo_api_key_set", False)
-                data["sendgrid_api_key_set"] = admin_data.get("sendgrid_api_key_set", False)
                 return data
         # Admin (or single-user install): surface the SMTP values from .env.
         return _overlay_smtp_from_env(data, instance)
@@ -139,13 +121,6 @@ class UserSerializer(serializers.ModelSerializer):
                 if f in ADMIN_ONLY_FIELDS:
                     validated_data.pop(f, None)
             validated_data.pop("smtp_password", None)
-
-        # Las API keys son write_only: la UI no recibe el valor guardado, así que
-        # al guardar ajustes sin retocarlas envía blanco. Tratar el blanco como
-        # "mantener la clave existente" (igual que smtp_password) para no borrarla.
-        for key_field in ("brevo_api_key", "sendgrid_api_key"):
-            if key_field in validated_data and not validated_data[key_field]:
-                validated_data.pop(key_field)
 
         new_smtp_user = None  # effective SMTP user, for from_email autosync below
 

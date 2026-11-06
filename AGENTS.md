@@ -10,7 +10,7 @@ App web autoalojada de newsletter: suscriptores, editor WYSIWYG, envío SMTP/API
 
 - Backend: Django 6 + DRF + **PostgreSQL** + JWT (cookies HttpOnly), scheduler in-process (sin Redis).
 - Frontend: React 19 + Vite + Tailwind + Tiptap.
-- Envío: SMTP (preset por proveedor) o APIs Brevo/SendGrid.
+- Envío: solo SMTP (preset por proveedor). Sin integraciones por API (Brevo/SendGrid eliminadas a propósito).
 - **Despliegue: NATIVO** (PostgreSQL + systemd/uvicorn + nginx del host). Desde **2026-06-15** ya **no** se usa Docker: `docker-compose.yml`, `DOCKER.md` y los `Dockerfile` quedan como **legado/referencia** (no describen el despliegue actual). Ver `deploy/README.md`.
 
 ## Despliegue y actualización (clave)
@@ -42,7 +42,7 @@ rsync -az --delete frontend/dist/ usuario@vps:/var/www/mailerup/dist/
 | `campaigns`    | CRUD campañas, send/schedule/pause/resume/duplicate, A/B, exclusiones, scheduler + recursos  |
 | `analytics`    | Tracking open/click (campañas y automatizaciones) + unsubscribe firmado, KPIs, entregabilidad|
 | `automations`  | Secuencias por formulario: pasos, enrolamientos, envíos y métricas por paso                  |
-| `integrations` | `SMTPSender`, `BrevoSender`, `SendGridSender`, `NullSender` (`get_sender`)                    |
+| `integrations` | `SMTPSender`, `NullSender` (`get_sender`)                    |
 | `forms`        | Formularios de suscripción (label `subscription_forms`) + doble opt-in / verificación        |
 
 **Inquilino compartido**: los datos cuelgan del primer admin (`get_admin_user()`); los usuarios autenticados comparten suscriptores/campañas (intencionado).
@@ -53,7 +53,7 @@ Los 8 invariantes están en `CLAUDE.md`. En resumen:
 
 1. **Nadie se registra solo**: sin endpoint público de alta; las cuentas las crea un admin (`POST /api/auth/users/`, `IsAdminUser`) o `createsuperuser`. Nunca reintroducir `register`/`AllowAny`.
 2. **API privada por defecto** (`IsAuthenticated`). Los únicos `AllowAny` legítimos: login/refresh/logout, alta pública de suscriptores (`/subscribe`, solo recibe), públicos firmados (`/u /o /c /oa /ca`, confirmación, `/recurso`).
-3. **Secretos `write_only`**: `smtp_password`, `brevo_api_key`, `sendgrid_api_key` nunca se devuelven (solo flags `*_set`). Provider/SMTP/footer solo los edita un admin.
+3. **Secretos `write_only`**: `smtp_password` nunca se devuelven (solo flags `*_set`). Provider/SMTP/footer solo los edita un admin.
 4. **Escalada cerrada**: `email`/`is_admin` read-only en `MeView`; no borrar/degradar al último admin.
 5. **Aislamiento por propietario** en serializers (queryset acotado en `get_fields()`, evita IDOR/CWE-639).
 6. **Entrada pública siempre escapada** (`django.utils.html.escape`); color validado a hex.
