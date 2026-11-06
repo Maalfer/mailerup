@@ -319,10 +319,8 @@ class SubscribeView(APIView):
         body = (
             '<div class="ico">&#x1F4E9;</div>'
             f'<h1>{greeting}</h1>'
-            '<p>Para enviarte el recurso solo queda <strong>un último paso</strong>: confirmar tu correo.</p>'
             f'<p>Te acabamos de enviar un email a <span class="email">{safe_email}</span>. '
-            'Ábrelo y pulsa el botón de confirmación y, en cuanto lo hagas, '
-            '<strong>recibirás el recurso en tu bandeja de entrada en unos minutos</strong>.</p>'
+            'Ábrelo y pulsa el botón de confirmación.</p>'
             '<p class="muted">¿No lo ves? Revisa la carpeta de spam o promociones. El enlace caduca en 48 horas.</p>'
         )
         return HttpResponse(FORM_PAGE.format(title="Revisa tu correo para recibir el recurso", body=body))

@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.utils.dateparse import parse_datetime
 from django.core.validators import validate_email
 from django.db.models import Count, Q
+from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -103,6 +104,14 @@ def all_subscribers(request):
             base = base.filter(list=selected)
 
     qs = base.order_by("-subscribed_at")
+
+    # Filtro opcional por estado (?status=active|inactive). "inactive" agrupa
+    # todo lo que no es "active" (dado de baja, rebotado, queja spam).
+    status_filter = (request.query_params.get("status") or "").strip()
+    if status_filter == "active":
+        qs = qs.filter(status="active")
+    elif status_filter == "inactive":
+        qs = qs.exclude(status="active")
 
     # Filtro opcional por email/nombre (server-side).
     search = (request.query_params.get("search") or "").strip()
@@ -311,6 +320,8 @@ def subscriber_detail(request, pk):
         new_status = request.data["status"]
         if new_status not in dict(Subscriber.STATUS):
             return Response({"detail": "status no válido"}, status=400)
+        if new_status != sub.status:
+            sub.unsubscribed_at = timezone.now() if new_status == "unsubscribed" else None
         sub.status = new_status
     if "lifecycle_stage" in request.data:
         stage = request.data["lifecycle_stage"]
